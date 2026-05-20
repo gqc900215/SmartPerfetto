@@ -30,6 +30,7 @@
     "node": ">=24.0.0 <25.0.0"
   },
   "scripts": {
+    "predev": "npm run trace-processor:ensure",
     "dev": "tsx watch --clear-screen=false src/index.ts",
     "clean": "node scripts/clean-dist.cjs",
     "build": "npm run clean && tsc && node scripts/copy-runtime-assets.cjs",
