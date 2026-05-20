@@ -47,19 +47,28 @@ dist/windows-exe/smartperfetto-v<version>-windows-x64.zip
 
 ## 发布
 
-正常公开发布：
+完整公开发布顺序见 [发布手册](release.md)。免安装包发布通常在 npm CLI
+发布和 smoke 通过后执行。
+
+正常公开发布中的 portable 步骤：
 
 ```bash
 npm run version:set -- 1.0.3
+npm run version:sync -- --check
 git add package.json package-lock.json backend/package.json backend/package-lock.json
 git commit -m "chore: release v1.0.3"
 git push origin main
-npm run release:portable -- 1.0.3 --no-draft
+npm --prefix backend run cli:pack-check
+npm --prefix backend publish --access public
+npm run package:portable
+npm run release:portable -- 1.0.3 --skip-build --no-draft
 ```
 
-`release:portable` 会重新打包、校验 manifest、上传所有目标平台 asset，并确认
+`package:portable` 会构建三平台包并校验 manifest。`release:portable --skip-build`
+会复用刚刚为同一版本和同一 commit 构建出的包，上传所有目标平台 asset，并确认
 GitHub Release 的 target commit 和 asset 名称。默认创建 draft release；加
-`--no-draft` 才直接发布。
+`--no-draft` 才直接发布。没有刚构建过同版本同 commit 包时，不要使用
+`--skip-build`。
 
 仅发布某个平台：
 
@@ -68,8 +77,8 @@ npm run release:portable -- 1.0.3 --targets macos-arm64
 npm run release:windows-exe -- 1.0.3
 ```
 
-公开发布不要使用 `--allow-dirty`。`--skip-build` 只适合已经为同一版本和同一
-commit 刚刚打过包的情况。
+公开发布不要使用 `--allow-dirty`。如果 npm 发布后发现大 bug，修复后必须发布
+新的 patch 版本，不要复用已经发布到 npm 的旧版本号。
 
 ## macOS 签名和公证
 

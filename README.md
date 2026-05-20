@@ -98,7 +98,22 @@ Step 4: Start or restart services. For Docker, run `docker compose -f docker-com
 | Analysis logic | YAML skills under `backend/skills/` plus Markdown strategies under `backend/strategies/` |
 | Storage | Local uploads, session logs, reports, and runtime learning files |
 | Testing | Jest, skill validation, strategy validation, 6-trace scene regression gate |
-| Deployment | Docker Compose, Windows EXE package, or local dev scripts |
+| Deployment | Docker Compose, GitHub portable packages, npm CLI package, or local scripts |
+
+## Public Release Channels
+
+| Channel | Install / run | Node requirement | Includes |
+|---------|---------------|------------------|----------|
+| Docker Hub | `docker compose -f docker-compose.hub.yml up -d` | No host Node.js required | Backend, committed pre-built UI, pinned `trace_processor_shell` |
+| GitHub portable | Download `smartperfetto-v<version>-*.zip` / `.tar.gz` | Bundled Node.js 24 | Launcher, backend, pre-built UI, native dependencies, pinned `trace_processor_shell` |
+| npm CLI | `npm install -g @gracker/smartperfetto` | Host Node.js `>=24 <25` | `smp` / `smartperfetto` CLI, Skills, Strategies, SQL, trace-processor prebuilts |
+| Source checkout | `./start.sh` | Host Node.js 24 LTS | Backend source, committed pre-built UI, optional `perfetto/` submodule for UI work |
+
+Maintainer release rules are in [Release Runbook](docs/reference/release.en.md)
+and [`.claude/rules/release.md`](.claude/rules/release.md). Feature and bug
+work should also check [`.claude/rules/product-surface.md`](.claude/rules/product-surface.md)
+so Web UI, CLI, API, reports, Docker, portable packages, runtime/provider,
+pre-built content, and Node boundaries stay aligned.
 
 ## For Users
 
@@ -151,19 +166,23 @@ Maintainer build command:
 
 ```bash
 npm run package:portable
-npm run package:windows-exe
-npm run package:macos-app
-npm run package:linux
 ```
 
-The root `package.json` is the project version source and is synchronized to `backend/package.json` and lockfiles. For a normal release, run `npm run version:set -- 1.0.1`, commit the version files, then publish:
+The root `package.json` is the project version source and is synchronized to `backend/package.json` and lockfiles. A normal public release publishes npm first, then GitHub portable assets:
 
 ```bash
-npm run release:portable -- 1.0.1
-npm run release:windows-exe -- 1.0.1
+npm run version:set -- <version>
+npm run version:sync -- --check
+git add package.json package-lock.json backend/package.json backend/package-lock.json
+git commit -m "chore: release v<version>"
+git push origin main
+npm --prefix backend run cli:pack-check
+npm --prefix backend publish --access public
+npm run package:portable
+npm run release:portable -- <version> --skip-build --no-draft
 ```
 
-Cross-platform assets are written to `dist/portable/`; the Windows-compatible command still writes to `dist/windows-exe/`. See [Portable Packaging](docs/reference/portable-packaging.en.md) for the full build, release, smoke test, and signing notes.
+Cross-platform assets are written to `dist/portable/`; the Windows-compatible command still writes to `dist/windows-exe/`. See [Release Runbook](docs/reference/release.en.md) and [Portable Packaging](docs/reference/portable-packaging.en.md) for npm smoke tests, GitHub release verification, and signing notes.
 
 ### Local Script
 
@@ -271,7 +290,7 @@ smp report <sessionId> --open
 smp repl
 ```
 
-The first analysis downloads the pinned `trace_processor_shell` binary automatically if it is not already available. If your network cannot reach Google's artifact bucket, set `TRACE_PROCESSOR_PATH=/path/to/trace_processor_shell` to use a local binary, or set `TRACE_PROCESSOR_DOWNLOAD_BASE` / `TRACE_PROCESSOR_DOWNLOAD_URL` to a trusted mirror; downloaded binaries are still checked against the pinned SHA256. `smartperfetto` remains available as the long command name; source checkout scripts are only for maintainers debugging the CLI. See [CLI Reference](docs/reference/cli.en.md) for all commands, REPL slash commands, storage layout, and resume behavior.
+The npm CLI package is the supported standalone terminal product. It does not start or bundle the Web UI launcher; use Docker or a GitHub portable package when you need the browser experience. The first analysis uses the bundled pinned `trace_processor_shell` binary when available, and can download the pinned binary automatically on unsupported targets. If your network cannot reach Google's artifact bucket, set `TRACE_PROCESSOR_PATH=/path/to/trace_processor_shell` to use a local binary, or set `TRACE_PROCESSOR_DOWNLOAD_BASE` / `TRACE_PROCESSOR_DOWNLOAD_URL` to a trusted mirror; downloaded binaries are still checked against the pinned SHA256. `smartperfetto` remains available as the long command name; source checkout scripts are only for maintainers debugging the CLI. See [CLI Reference](docs/reference/cli.en.md) for all commands, REPL slash commands, storage layout, and resume behavior.
 
 ## API Integration
 
@@ -298,6 +317,7 @@ Frontend (Perfetto UI @ :10000)
 Backend (Express @ :3000)
   ├─ Runtime selector: Claude Agent SDK or OpenAI Agents SDK
   ├─ Agent orchestration: scene routing, prompts, MCP tools, verifier
+  ├─ Shared comparison evidence/report contracts for Web UI and CLI
   ├─ Skill engine: YAML analysis pipelines
   ├─ Session/report/log services
   └─ trace_processor_shell pool (HTTP RPC, 9100-9900)

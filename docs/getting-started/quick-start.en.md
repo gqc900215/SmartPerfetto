@@ -74,9 +74,15 @@ Common prompts:
 
 ## 6. Required Checks
 
-Pick the smallest validation layer that proves your change. See [Testing and Verification](../development/testing.en.md) for details:
+Pick the smallest validation layer that proves your change. Maintainers and
+LLM/agents should first read [Product Surface Rules](../../.claude/rules/product-surface.md)
+and [Testing Rules](../../.claude/rules/testing.md):
 
 - Contract / type-only: `cd backend && npx tsc --noEmit` plus the relevant `sparkContracts` tests.
 - CRUD-only service: the service's unit test.
 - MCP / memory / report / agent runtime: `cd backend && npm run test:scene-trace-regression`.
 - PR landing: `npm run verify:pr`.
+
+Release, npm, Docker, or portable-package changes also need the
+[Release Runbook](../reference/release.en.md) and
+[Release Rules](../../.claude/rules/release.md).

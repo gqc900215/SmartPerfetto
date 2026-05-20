@@ -48,19 +48,29 @@ dist/windows-exe/smartperfetto-v<version>-windows-x64.zip
 
 ## Release
 
-Normal public release:
+See the [Release Runbook](release.en.md) for the full public release sequence.
+Portable publishing normally happens after the npm CLI is published and smoked.
+
+Portable steps in a normal public release:
 
 ```bash
 npm run version:set -- 1.0.3
+npm run version:sync -- --check
 git add package.json package-lock.json backend/package.json backend/package-lock.json
 git commit -m "chore: release v1.0.3"
 git push origin main
-npm run release:portable -- 1.0.3 --no-draft
+npm --prefix backend run cli:pack-check
+npm --prefix backend publish --access public
+npm run package:portable
+npm run release:portable -- 1.0.3 --skip-build --no-draft
 ```
 
-`release:portable` rebuilds packages, verifies manifests, uploads every target
-asset, and verifies the GitHub Release target commit plus asset names. It creates
-a draft release by default; pass `--no-draft` to publish immediately.
+`package:portable` builds all three target packages and verifies manifests.
+`release:portable --skip-build` reuses packages just built from the same version
+and commit, uploads every target asset, and verifies the GitHub Release target
+commit plus asset names. It creates a draft release by default; pass
+`--no-draft` to publish immediately. Do not use `--skip-build` unless those
+same-version, same-commit packages were just built.
 
 Single-target release:
 
@@ -69,8 +79,9 @@ npm run release:portable -- 1.0.3 --targets macos-arm64
 npm run release:windows-exe -- 1.0.3
 ```
 
-Do not use `--allow-dirty` for public releases. Use `--skip-build` only when the
-existing asset was freshly built for the exact version and commit.
+Do not use `--allow-dirty` for public releases. If a major bug is found after
+npm publish, fix it and publish a new patch version instead of reusing the
+already-published npm version.
 
 ## macOS Signing and Notarization
 

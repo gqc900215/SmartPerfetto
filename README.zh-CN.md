@@ -98,7 +98,20 @@ SMARTPERFETTO_OUTPUT_LANGUAGE=en
 | 分析逻辑 | `backend/skills/` 下的 YAML Skill，`backend/strategies/` 下的 Markdown 策略 |
 | 存储 | 本地上传文件、Session 日志、报告、运行时学习文件 |
 | 测试 | Jest、Skill 校验、Strategy 校验、6 条 canonical trace 回归 |
-| 部署 | Docker Compose、Windows EXE 包或本地开发脚本 |
+| 部署 | Docker Compose、GitHub 免安装包、npm CLI 包或本地脚本 |
+
+## 公开发布渠道
+
+| 渠道 | 安装 / 运行 | Node 要求 | 包含内容 |
+|------|-------------|-----------|----------|
+| Docker Hub | `docker compose -f docker-compose.hub.yml up -d` | 不需要宿主机 Node.js | 后端、提交的预构建 UI、固定 `trace_processor_shell` |
+| GitHub 免安装包 | 下载 `smartperfetto-v<version>-*.zip` / `.tar.gz` | 包内自带 Node.js 24 | 启动器、后端、预构建 UI、原生依赖、固定 `trace_processor_shell` |
+| npm CLI | `npm install -g @gracker/smartperfetto` | 宿主机 Node.js `>=24 <25` | `smp` / `smartperfetto` CLI、Skill、Strategy、SQL、trace-processor 预编译产物 |
+| 源码 checkout | `./start.sh` | 宿主机 Node.js 24 LTS | 后端源码、提交的预构建 UI、可选 `perfetto/` submodule 用于 UI 开发 |
+
+维护者发布规则见 [发布手册](docs/reference/release.md) 和
+[`.claude/rules/release.md`](.claude/rules/release.md)。Feature/Bug 修改还要先查
+[`.claude/rules/product-surface.md`](.claude/rules/product-surface.md)，确保 Web UI、CLI、API、报告、Docker、免安装包、runtime/provider、预置内容和 Node 边界同步考虑。
 
 ## 使用者
 
@@ -149,19 +162,23 @@ Windows 用户使用 Docker Desktop，并启用 WSL2 backend。发布的是 Linu
 
 ```bash
 npm run package:portable
-npm run package:windows-exe
-npm run package:macos-app
-npm run package:linux
 ```
 
-版本号以根目录 `package.json` 为源头，并同步到 `backend/package.json` 和 lockfile。正常发布时先运行 `npm run version:set -- 1.0.1`，提交版本文件，然后发布：
+版本号以根目录 `package.json` 为源头，并同步到 `backend/package.json` 和 lockfile。正常公开发布先发 npm，再发 GitHub 免安装包：
 
 ```bash
-npm run release:portable -- 1.0.1
-npm run release:windows-exe -- 1.0.1
+npm run version:set -- <version>
+npm run version:sync -- --check
+git add package.json package-lock.json backend/package.json backend/package-lock.json
+git commit -m "chore: release v<version>"
+git push origin main
+npm --prefix backend run cli:pack-check
+npm --prefix backend publish --access public
+npm run package:portable
+npm run release:portable -- <version> --skip-build --no-draft
 ```
 
-跨平台产物在 `dist/portable/`；兼容的 Windows 命令仍会输出到 `dist/windows-exe/`。完整打包、发布、smoke 验证和签名说明见 [免安装包打包](docs/reference/portable-packaging.md)。
+跨平台产物在 `dist/portable/`；兼容的 Windows 命令仍会输出到 `dist/windows-exe/`。npm smoke、GitHub release 校验和签名说明见 [发布手册](docs/reference/release.md) 和 [免安装包打包](docs/reference/portable-packaging.md)。
 
 ### 本地脚本运行
 
@@ -259,16 +276,17 @@ SmartPerfetto 同时提供终端 CLI，可以不打开浏览器 UI 直接分析 
 npm install -g @gracker/smartperfetto
 
 # 分析 trace，并继续追问或打开报告。
-smp -f trace.pftrace -p "分析滑动卡顿"
-smp resume <sessionId> --query "为什么 RenderThread 这么慢？"
+smp doctor
+smp run trace.pftrace "分析滑动卡顿"
+smp ask <sessionId> "为什么 RenderThread 这么慢？"
 smp list
 smp report <sessionId> --open
 
-# 或者直接进入 Claude-Code 风格的交互 REPL。
-smp
+# 或者直接进入 SmartPerfetto 交互 REPL。
+smp repl
 ```
 
-第一次分析时，如果本机还没有 `trace_processor_shell`，CLI 会自动下载固定版本。若网络无法访问 Google artifact bucket，可以设置 `TRACE_PROCESSOR_PATH=/path/to/trace_processor_shell` 使用本机已有 binary，或设置 `TRACE_PROCESSOR_DOWNLOAD_BASE` / `TRACE_PROCESSOR_DOWNLOAD_URL` 指向可信镜像；下载内容仍会按固定 SHA256 校验。`smartperfetto` 仍保留为长命令名；源码 checkout 里的脚本只用于维护者调试 CLI。完整命令、REPL slash 命令、存储布局和 resume 语义见 [CLI 参考](docs/reference/cli.md)。
+npm CLI 包是正式独立终端产品，不启动也不包含 Web UI launcher；需要浏览器体验时使用 Docker 或 GitHub 免安装包。第一次分析时，CLI 会优先使用包内固定版本 `trace_processor_shell`；当前平台没有内置 binary 时会自动下载固定版本。若网络无法访问 Google artifact bucket，可以设置 `TRACE_PROCESSOR_PATH=/path/to/trace_processor_shell` 使用本机已有 binary，或设置 `TRACE_PROCESSOR_DOWNLOAD_BASE` / `TRACE_PROCESSOR_DOWNLOAD_URL` 指向可信镜像；下载内容仍会按固定 SHA256 校验。`smartperfetto` 仍保留为长命令名；源码 checkout 里的脚本只用于维护者调试 CLI。完整命令、REPL slash 命令、存储布局和 resume 语义见 [CLI 参考](docs/reference/cli.md)。
 
 ## API 接入
 
@@ -295,6 +313,7 @@ Frontend (Perfetto UI @ :10000)
 Backend (Express @ :3000)
   ├─ Runtime selector: Claude Agent SDK 或 OpenAI Agents SDK
   ├─ Agent 编排: 场景路由、Prompt、MCP 工具、Verifier
+  ├─ Web UI 和 CLI 共用的对比证据/报告合约
   ├─ Skill engine: YAML 分析管线
   ├─ Session/report/log 服务
   └─ trace_processor_shell 进程池（HTTP RPC, 9100-9900）

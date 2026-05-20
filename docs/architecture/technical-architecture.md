@@ -2,6 +2,11 @@
 
 > AI-driven Perfetto Trace 分析平台 — 面向技术人员的深度介绍
 
+> 当前架构备注：本文主体记录 agentv3/Claude Runtime 形成过程。当前产品已经扩展为
+> Web UI、CLI、API、Docker、免安装包多入口，并支持 Claude Agent SDK 与 OpenAI
+> Agents SDK 两套 runtime。权威产品面和 runtime 边界见
+> [架构总览](overview.md) 与 [Agent Runtime 架构](agent-runtime.md)。
+
 ---
 
 ## 目录

@@ -13,9 +13,10 @@ SmartPerfetto is an Android performance analysis platform built on Perfetto. Thi
 | Multi-trace result comparison user | [Multi-Trace Analysis Result Comparison](getting-started/multi-trace-result-comparison.en.md) | [Basic Usage](getting-started/usage.en.md), [API Reference](reference/api.en.md) |
 | Backend API integrator | [API Reference](reference/api.en.md) | [MCP Tools Reference](reference/mcp-tools.en.md) |
 | CLI or automation user | [CLI Reference](reference/cli.en.md) | [API Reference](reference/api.en.md) |
-| Contributor | [Local Development](development/local-development.en.md) | [Testing and Verification](development/testing.en.md), [Contributing Guide](../CONTRIBUTING.md) |
-| Skill author | [Skill System Guide](reference/skill-system.en.md) | [MCP Tools Reference](reference/mcp-tools.en.md), [Testing and Verification](development/testing.en.md) |
-| Architecture reader | [Architecture Overview](architecture/overview.en.md) | [Data Contract](../backend/docs/DATA_CONTRACT_DESIGN.en.md) |
+| Contributor | [Root AGENTS.md](../AGENTS.md) | [Product Surface Rules](../.claude/rules/product-surface.md), [Testing Rules](../.claude/rules/testing.md), [Contributing Guide](../CONTRIBUTING.md) |
+| Skill author | [Skill System Guide](reference/skill-system.en.md) | [MCP Tools Reference](reference/mcp-tools.en.md), [Testing Rules](../.claude/rules/testing.md) |
+| Architecture reader | [Architecture Overview](architecture/overview.en.md) | [Agent Runtime](architecture/agent-runtime.en.md), [Data Contract](../backend/docs/DATA_CONTRACT_DESIGN.en.md) |
+| Release maintainer | [Release Runbook](reference/release.en.md) | [Portable Packaging](reference/portable-packaging.en.md), [Release Rules](../.claude/rules/release.md) |
 | Feature plan reader | [Multi-trace comparison development plan](features/multi-trace-result-comparison/README.md) | [Enterprise multi-tenant plan](features/enterprise-multi-tenant/README.md) |
 | Deployment troubleshooter | [Troubleshooting](operations/troubleshooting.en.md) | [Configuration Guide](getting-started/configuration.en.md) |
 
@@ -29,7 +30,6 @@ docs/
 ├── architecture/                     # Current architecture and authoritative design
 ├── features/                         # Feature-specific development docs
 ├── reference/                        # API, CLI, MCP, and Skill DSL references
-├── development/                      # Development and verification workflow
 ├── operations/                       # Runtime operations and troubleshooting
 ├── rendering_pipelines/              # Runtime-read Android rendering pipeline knowledge
 ├── product/                          # External project positioning
@@ -39,7 +39,9 @@ docs/
 
 ## Authoritative Docs
 
-- Startup and runtime flow: [Quick Start](getting-started/quick-start.en.md), [Portable Packaging](reference/portable-packaging.en.md), and [Local Development](development/local-development.en.md).
+- Startup and runtime flow: [Quick Start](getting-started/quick-start.en.md), [CLI Reference](reference/cli.en.md), [Portable Packaging](reference/portable-packaging.en.md), and [Release Runbook](reference/release.en.md).
+- Feature and bug work: use [Product Surface Rules](../.claude/rules/product-surface.md) to check Web UI, CLI, API, reports, Docker, portable packages, runtime/provider, Node version, and bundled-content impact.
+- Release, npm, portable, and Docker work: [Release Runbook](reference/release.en.md) and [Release Rules](../.claude/rules/release.md).
 - Provider and model configuration: [Configuration Guide](getting-started/configuration.en.md).
 - Backend API: [API Reference](reference/api.en.md).
 - CLI usage: [CLI Reference](reference/cli.en.md).

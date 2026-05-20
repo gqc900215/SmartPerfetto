@@ -58,6 +58,10 @@ dist/windows-exe/smartperfetto-v1.0.1-windows-x64.zip
 
 ## 发布流程
 
+当前公开发布优先使用三平台 [免安装包打包](portable-packaging.md) 和
+[发布手册](release.md)。`release:windows-exe` 只是兼容入口，用于单独重发 Windows
+x64 asset。
+
 正式发布前先同步并提交版本号：
 
 ```bash

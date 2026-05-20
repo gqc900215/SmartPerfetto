@@ -62,6 +62,11 @@ The script:
 
 ## Release Flow
 
+Public releases should normally use the three-platform
+[Portable Packaging](portable-packaging.en.md) flow and the
+[Release Runbook](release.en.md). `release:windows-exe` is a compatibility
+entry point for re-publishing only the Windows x64 asset.
+
 Before publishing a normal release, synchronize and commit the version:
 
 ```bash

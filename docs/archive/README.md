@@ -8,7 +8,7 @@
 - [架构总览](../architecture/overview.md)
 - [agentv3 运行时](../architecture/agent-runtime.md)
 - [API 参考](../reference/api.md)
-- [测试与验证](../development/testing.md)
+- [测试规则](../../.claude/rules/testing.md)
 
 ## 子目录
 

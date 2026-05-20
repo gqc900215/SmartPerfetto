@@ -26,6 +26,9 @@ Never push SmartPerfetto submodule changes to upstream `origin`.
 
 ## Portable Release Workflow
 
+Read `.claude/rules/release.md` before any public release. This section keeps
+the git-specific portable rules only.
+
 Portable releases are published from the root repository, not from the
 `perfetto/` submodule. The default release uploads Windows x64, macOS arm64,
 and Linux x64 assets to the same GitHub Release.
@@ -34,11 +37,13 @@ Normal public release flow:
 
 1. Start from an up-to-date clean `main`.
 2. Run `npm run version:set -- <version>`.
-3. Commit `package.json`, `package-lock.json`, `backend/package.json`, and
+3. Run `npm run version:sync -- --check`.
+4. Commit `package.json`, `package-lock.json`, `backend/package.json`, and
    `backend/package-lock.json`.
-4. Push `main`.
-5. Run `npm run package:portable`.
-6. Run `npm run release:portable -- <version> --skip-build --no-draft`.
+5. Push `main`.
+6. Publish and smoke the npm CLI when the version is public.
+7. Run `npm run package:portable`.
+8. Run `npm run release:portable -- <version> --skip-build --no-draft`.
 
 Release invariants:
 
@@ -54,6 +59,8 @@ Release invariants:
   exact version and commit being released.
 - The release script must verify the package manifest, commit, dirty state,
   remote release target, and uploaded asset before reporting success.
+- The npm CLI package must publish from `backend/` as
+  `@gracker/smartperfetto` and expose both `smp` and `smartperfetto`.
 - `dist/portable/` and `dist/windows-exe/` are generated output; never stage or
   commit them.
 

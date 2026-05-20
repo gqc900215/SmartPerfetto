@@ -1,6 +1,10 @@
 # SmartPerfetto 架构文章 Q&A
 
 > 这篇文章收集了[《从 Trace 到洞察：SmartPerfetto AI Agent 的 Harness Engineering 实战》](./deep-dive.md)发布后收到的技术问题，以问答形式展开讨论。
+>
+> 当前产品备注：Q&A 里的 Claude Agent SDK 讨论仍适用于默认 runtime，但当前产品已经增加
+> OpenAI Agents SDK、npm CLI、Docker、免安装包和共享对比合约。当前权威边界见
+> [架构总览](overview.md) 和 [Agent Runtime 架构](agent-runtime.md)。
 
 ---
 

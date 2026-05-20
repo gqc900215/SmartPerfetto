@@ -43,9 +43,11 @@ cd backend && npm run build
 - Keep Provider Manager/runtime provider pinning semantics intact.
 - Do not push a root commit that points at a local-only `perfetto/` submodule
   commit.
-- For portable packaging/release work, keep public releases clean and
-  versioned; follow `.claude/rules/git.md`, `.claude/rules/testing.md`, and
-  `docs/reference/portable-packaging.md`.
+- Before feature or bug work, check the affected product surfaces in
+  `.claude/rules/product-surface.md`.
+- Before publish, package, tag, npm, Docker, or portable release work, read
+  `.claude/rules/release.md` plus `.claude/rules/git.md` and
+  `.claude/rules/testing.md`.
 
 ## Detailed Rules
 
@@ -55,6 +57,8 @@ Read the relevant detailed rule before touching that area:
 - `.claude/rules/frontend.md`
 - `.claude/rules/prompts.md`
 - `.claude/rules/skills.md`
+- `.claude/rules/product-surface.md`
+- `.claude/rules/release.md`
 - `.claude/rules/testing.md`
 - `.claude/rules/git.md`
 

@@ -3,6 +3,11 @@
 
 # 多 Trace 分析结果对比 Feature 计划
 
+> 当前产品边界：SmartPerfetto 同时保留 Raw Trace Compare（前端 reference trace /
+> CLI `smp compare`，实时查询两条 trace）和 Analysis Result Compare（本文，比较
+> 已完成分析结果快照）。两者共享对比报告 section 和证据约束，不能再做 CLI 私有
+> 对比 Prompt。长期规则见 [`../../../.claude/rules/product-surface.md`](../../../.claude/rules/product-surface.md)。
+
 ## 1. 文档定位
 
 本文定义一个新的 SmartPerfetto 功能：用户在两个或多个独立 Perfetto UI

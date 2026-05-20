@@ -24,6 +24,9 @@ Node.js 24 LTS is required. The npm CLI package bundles pinned
 On unsupported platforms the CLI downloads the pinned binary; if automatic
 download is unavailable, set `TRACE_PROCESSOR_PATH` to an existing local
 executable.
+The CLI package is the standalone terminal product; it does not start or bundle
+the Web UI launcher. Use Docker or a GitHub portable package for the browser
+experience.
 
 ## Global Options
 
@@ -116,15 +119,16 @@ smp compare current.perfetto-trace reference.perfetto-trace --query "Compare jan
 ```
 
 `compare` passes the second trace as the reference trace and enables dual-trace
-analysis tools in the AI runtime. The CLI automatically appends a deep
-comparison contract so reports include metric matrices, phase/hotspot deltas,
-blocking and scheduling differences, ruled-out system factors, evidence limits,
-and next steps instead of only a duration delta. The CLI also appends a
-deterministic SQL-generated comparison appendix covering package, Perfetto's
-raw startup_type, duration delta, startup-window top slices, and main-thread
-state distribution. The appendix treats startup_type as a raw Perfetto field,
-not a second CLI classification; cold/warm conflicts must be called out as
-evidence limits in the report body.
+analysis tools in the AI runtime. CLI compare and frontend Raw Trace Compare
+share the same comparison identity, evidence pack, report section, and session
+snapshot rules; this is not a private CLI prompt. The shared comparison
+contract requires metric matrices, phase/hotspot deltas, blocking and scheduling
+differences, ruled-out system factors, evidence limits, and next steps instead
+of only a duration delta. The shared deterministic SQL evidence covers package,
+Perfetto's raw startup_type, duration delta, startup-window top slices, and
+main-thread state distribution. Treat startup_type as a raw Perfetto field, not
+a second classification; cold/warm conflicts must be called out as evidence
+limits in the report body.
 
 ## Reports And History
 

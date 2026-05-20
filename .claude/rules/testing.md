@@ -25,7 +25,27 @@ and the 6-trace scene regression gate.
 | Strategy/template Markdown | `cd backend && npm run validate:strategies` plus scene trace regression |
 | Frontend generated types | `cd backend && npm run generate:frontend-types` plus relevant tests |
 | AI plugin UI | Browser verification in `start-dev.sh`, relevant `perfetto/ui` tests/typecheck, then `./scripts/update-frontend.sh` |
+| npm CLI package/release | `npm --prefix backend run cli:pack-check` plus isolated install smoke |
 | Portable packaging/release | Shell syntax/static checks, Node script syntax checks, launcher cross-compile, full package build, and package manifest verification |
+
+## npm CLI Release Verification
+
+When changing CLI packaging, bin entrypoints, CLI runtime assets, Node engine
+rules, or npm release docs, run:
+
+```bash
+npm --prefix backend run cli:pack-check
+```
+
+For a public npm release, additionally verify the published package from an
+empty temp directory:
+
+```bash
+npm install @gracker/smartperfetto@<version>
+./node_modules/.bin/smp --version
+./node_modules/.bin/smartperfetto --help
+./node_modules/.bin/smp doctor --format json
+```
 
 ## Portable Packaging Verification
 

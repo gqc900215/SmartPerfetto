@@ -6,6 +6,10 @@
 
 本文档是 Self-Improving 功能的权威设计参考。设计灵感来自 Hermes Agent 的三子系统架构（Memory / Skill / Nudge Engine），但适配了 SmartPerfetto 的"数据管道"特性——SmartPerfetto 的 skill 是 SQL 查询（正确性敏感），而不是 Hermes 那种过程性 Markdown 指南。
 
+当前产品边界：Self-Improving 设计描述的是运行时学习子系统；主分析入口已经扩展到
+Web UI、CLI、API、Docker、免安装包，以及 Claude/OpenAI 双 runtime。改动此系统时仍需按
+[产品面规则](../../.claude/rules/product-surface.md) 检查 session、provider、report 和发布形态影响。
+
 ---
 
 ## 1. 设计哲学

@@ -77,7 +77,9 @@
 
 ## 6. 必要检查
 
-按改动类型选择测试层（详见 [测试与验证](../development/testing.md)）：
+按改动类型选择最小测试层。维护者和 LLM/Agent 需要先读
+[产品面规则](../../.claude/rules/product-surface.md) 和
+[测试规则](../../.claude/rules/testing.md)：
 
 - Contract / 纯类型：`cd backend && npx tsc --noEmit` + 相关 sparkContracts 单测
 - CRUD-only service：该 service 的单测
@@ -85,4 +87,6 @@
 
 - PR landing：`npm run verify:pr`（强制全量）
 
-更多命令见 [测试与验证](../development/testing.md)。
+发布、npm、Docker 或免安装包相关改动还需要读
+[发布手册](../reference/release.md) 和
+[发布规则](../../.claude/rules/release.md)。

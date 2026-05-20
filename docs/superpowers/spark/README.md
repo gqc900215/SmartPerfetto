@@ -9,7 +9,7 @@
 2. 从本 README 选择一个 plan。
 3. 打开对应 `plans/*.md`，按其中的 Current Code Grounding 重新调研代码。
 4. 只施工该 plan 的 Spark coverage，不顺手扩大范围。
-5. 代码改动后按 AGENTS 规则验证，至少跑相关单测；任何代码改动最终需要 `cd backend && npm run test:scene-trace-regression`。
+5. 代码改动后按 AGENTS 规则和 [测试规则](../../../.claude/rules/testing.md) 验证；触 mcp / memory / report / agent runtime 或 PR landing 时必须跑 scene regression。
 6. 完成后回到 [TODO.md](TODO.md) 把对应 checkbox 改成 `[x]`。
 
 ## 代码调研基线

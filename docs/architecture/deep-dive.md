@@ -3,6 +3,11 @@
 ![SmartPerfetto Cover](../images/00-cover.png)
 
 > 这篇文章记录了 SmartPerfetto 从零到可用过程中的关键技术决策——为什么选这个方案而不是那个，哪些地方踩了坑，踩完之后怎么调整的。
+>
+> 当前产品备注：文章里的 Claude Agent SDK 是 SmartPerfetto 的起点和默认 runtime。
+> 现在产品还包括 npm CLI、Docker、免安装包、OpenAI Agents SDK runtime，以及前后端共享的
+> 对比证据/报告合约。当前权威边界见 [架构总览](overview.md) 和
+> [Agent Runtime 架构](agent-runtime.md)。
 
 ## 为什么做这个工具
 
