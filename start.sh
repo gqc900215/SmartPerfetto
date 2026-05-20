@@ -352,6 +352,7 @@ else
   mkdir -p "$(dirname "$TRACE_PROCESSOR")"
   download_trace_processor_prebuilt "$TRACE_PROCESSOR"
 fi
+export TRACE_PROCESSOR_PATH="$TRACE_PROCESSOR"
 
 # ── Install backend deps if needed ────────────────────────────────────────────
 

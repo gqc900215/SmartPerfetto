@@ -400,6 +400,42 @@ describe('enterprise trace metadata routes', () => {
     });
   });
 
+  it('reports trace_processor startup failures without creating a frontend lease', async () => {
+    const app = makeApp();
+    const sourceTracePath = path.join(tmpDir, 'tp-failure.trace');
+    await fs.writeFile(sourceTracePath, 'tp-failure');
+    const tpError = 'trace_processor_shell not found at: /missing/trace_processor_shell';
+    fakeTraceProcessorService.completeUpload.mockImplementationOnce(async () => {
+      throw new Error(tpError);
+    });
+    fakeTraceProcessorService.getTraceWithPort.mockImplementationOnce((traceId: unknown) => ({
+      id: String(traceId),
+      filename: 'tp-failure.trace',
+      size: 'tp-failure'.length,
+      uploadTime: new Date(),
+      status: 'error',
+      error: tpError,
+    }));
+
+    const uploadRes = await ssoHeaders(
+      request(app)
+        .post('/api/traces/upload')
+        .attach('file', sourceTracePath),
+    );
+
+    expect(uploadRes.status).toBe(200);
+    expect(uploadRes.body).toEqual(expect.objectContaining({
+      success: false,
+      error: expect.stringContaining(tpError),
+    }));
+    const traceId = uploadRes.body.trace.id as string;
+    expect(readTraceAsset(traceId)).toEqual(expect.objectContaining({
+      id: traceId,
+      status: 'ready',
+    }));
+    expect(readTraceProcessorLeases(traceId)).toEqual([]);
+  });
+
   it('keeps simultaneous user uploads scoped while concurrent cleanup is blocked by active holders', async () => {
     const app = makeApp();
 

@@ -708,6 +708,7 @@ else
 fi
 
 "$TRACE_PROCESSOR" --version | head -n 1 || true
+export TRACE_PROCESSOR_PATH="$TRACE_PROCESSOR"
 
 if [ "$SKIP_BUILD" = false ]; then
   # Keep frontend types in sync without rewriting generated files on every dev start.

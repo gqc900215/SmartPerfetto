@@ -42,6 +42,11 @@ export function getBundledTraceProcessorPath(): string {
   return path.resolve(__dirname, '../../../perfetto/out/ui', executableName);
 }
 
+export function getBackendBinTraceProcessorPath(): string {
+  const executableName = process.platform === 'win32' ? 'trace_processor_shell.exe' : 'trace_processor_shell';
+  return path.resolve(__dirname, '../../bin', executableName);
+}
+
 export function getUserTraceProcessorPath(): string {
   const home = process.env.SMARTPERFETTO_HOME && process.env.SMARTPERFETTO_HOME.trim()
     ? path.resolve(process.env.SMARTPERFETTO_HOME)
@@ -50,13 +55,44 @@ export function getUserTraceProcessorPath(): string {
   return path.join(home, 'bin', executableName);
 }
 
-export function getTraceProcessorPath(): string {
-  if (process.env.TRACE_PROCESSOR_PATH) {
-    return path.resolve(process.env.TRACE_PROCESSOR_PATH);
+export function isTraceProcessorPathPlaceholder(value: string): boolean {
+  const normalized = value.trim().replace(/\\/g, '/');
+  return normalized === '/path/to/trace_processor_shell' ||
+    normalized === '/path/to/trace_processor_shell.exe' ||
+    normalized === 'path/to/trace_processor_shell' ||
+    normalized === 'path/to/trace_processor_shell.exe' ||
+    normalized === '/absolute/path/to/trace_processor_shell' ||
+    normalized === '/absolute/path/to/trace_processor_shell.exe' ||
+    /^[A-Za-z]:\/path\/to\/trace_processor_shell(?:\.exe)?$/.test(normalized);
+}
+
+let warnedTraceProcessorPathPlaceholder = false;
+
+function resolveEnvTraceProcessorPath(): string | undefined {
+  const configured = process.env.TRACE_PROCESSOR_PATH?.trim();
+  if (!configured) return undefined;
+  if (isTraceProcessorPathPlaceholder(configured)) {
+    if (!warnedTraceProcessorPathPlaceholder) {
+      warnedTraceProcessorPathPlaceholder = true;
+      console.warn(
+        '[TraceProcessor] Ignoring placeholder TRACE_PROCESSOR_PATH. ' +
+          'Comment it out or set it to an absolute trace_processor_shell path.',
+      );
+    }
+    return undefined;
   }
+  return path.resolve(configured);
+}
+
+export function getTraceProcessorPath(): string {
+  const envPath = resolveEnvTraceProcessorPath();
+  if (envPath) return envPath;
 
   const bundledPath = getBundledTraceProcessorPath();
   if (fs.existsSync(bundledPath)) return bundledPath;
+
+  const backendBinPath = getBackendBinTraceProcessorPath();
+  if (fs.existsSync(backendBinPath)) return backendBinPath;
 
   return getUserTraceProcessorPath();
 }

@@ -131,8 +131,12 @@ function checkUploadDiskSpace(req: Request, res: Response, next: NextFunction): 
 }
 
 interface FinalizedTraceUploadInfo {
+  id?: string;
+  filename?: string;
+  size?: number;
   uploadTime?: Date;
   status?: string;
+  error?: string;
   port?: number;
   leaseId?: string;
   leaseState?: string;
@@ -575,17 +579,32 @@ async function finalizeTraceUpload(
   });
 
   if (tps) {
+    let processorError: string | undefined;
     try {
       await tps.completeUpload(traceId);
       console.log(`[TraceProcessor] Loaded trace ${traceId}`);
     } catch (tpError: any) {
+      processorError = tpError.message;
       console.error(`[TraceProcessor] Failed to load trace ${traceId}:`, tpError.message);
     }
+
+    const traceWithPort = tps.getTraceWithPort(traceId);
+    if (processorError || traceWithPort?.status === 'error') {
+      return {
+        id: traceId,
+        filename,
+        size,
+        ...(traceWithPort ?? {}),
+        status: 'error',
+        error: traceWithPort?.error ?? processorError ?? 'trace_processor_shell failed to start',
+      };
+    }
+
+    const acquisition = acquireFrontendTraceLease(context, traceId);
+    return acquisition ? { ...(traceWithPort ?? {}), ...leaseResponseFields(acquisition) } : traceWithPort;
   }
 
-  const traceWithPort = tps?.getTraceWithPort(traceId);
-  const acquisition = acquireFrontendTraceLease(context, traceId);
-  return acquisition ? { ...(traceWithPort ?? {}), ...leaseResponseFields(acquisition) } : traceWithPort;
+  return undefined;
 }
 
 function getFilenameFromUrl(rawUrl: string, fallback = 'trace.perfetto'): string {
@@ -620,6 +639,30 @@ function isBlockedTraceUrl(url: URL): boolean {
 
 function tempUploadFilename(): string {
   return `${uuidv4()}${TEMP_UPLOAD_SUFFIX}`;
+}
+
+function traceUploadHasRpcTarget(traceInfo: FinalizedTraceUploadInfo | undefined): boolean {
+  if (traceInfo?.status === 'error') return false;
+  return Boolean(traceInfo?.port || traceInfo?.leaseId);
+}
+
+function traceProcessorUnavailableMessage(traceInfo: FinalizedTraceUploadInfo | undefined): string {
+  if (traceInfo?.error) {
+    return `Trace uploaded, but trace_processor_shell failed to start: ${traceInfo.error}`;
+  }
+
+  const status = traceInfo?.processor?.status ?? traceInfo?.status;
+  return status
+    ? `Trace uploaded, but trace_processor_shell did not become ready (status: ${status})`
+    : 'Trace uploaded, but backend did not return an HTTP RPC port or lease';
+}
+
+function sendTraceProcessorUnavailable(res: Response, traceInfo: FinalizedTraceUploadInfo | undefined): void {
+  res.json({
+    success: false,
+    error: traceProcessorUnavailableMessage(traceInfo),
+    trace: traceInfo,
+  });
 }
 
 async function cleanupFile(filePath: string | undefined): Promise<void> {
@@ -756,6 +799,10 @@ router.post(
 
       // Get trace status and processor port from service
       const traceInfo = await finalizeTraceUpload(traceId, file.originalname, file.size, finalPath, context, 'local');
+      if (!traceUploadHasRpcTarget(traceInfo)) {
+        sendTraceProcessorUnavailable(res, traceInfo);
+        return;
+      }
 
       res.json({
         success: true,
@@ -871,6 +918,10 @@ router.post('/upload-url', async (req, res) => {
     console.log(`URL trace fetched successfully: ${rawUrl} -> ${traceId}`);
 
     const traceInfo = await finalizeTraceUpload(traceId, filename, size, finalPath, context, 'url');
+    if (!traceUploadHasRpcTarget(traceInfo)) {
+      sendTraceProcessorUnavailable(res, traceInfo);
+      return;
+    }
 
     res.json({
       success: true,

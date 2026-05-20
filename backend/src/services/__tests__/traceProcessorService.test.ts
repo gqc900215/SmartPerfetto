@@ -25,6 +25,9 @@ import { PortPool, getPortPool, resetPortPool } from '../portPool';
 import {
   TraceProcessorFactory,
   WorkingTraceProcessor,
+  getBackendBinTraceProcessorPath,
+  getTraceProcessorPath,
+  isTraceProcessorPathPlaceholder,
   isFatalTraceProcessorListenFailure,
   isTraceProcessorReadyMessage,
   killOrphanProcessors,
@@ -150,6 +153,36 @@ describe('trace_processor startup stderr parsing', () => {
       expect(supportsTraceProcessorCorsOriginsFlag(script)).toBe(false);
     } finally {
       cleanupTempFile(script);
+    }
+  });
+
+  it('detects placeholder TRACE_PROCESSOR_PATH values', () => {
+    expect(isTraceProcessorPathPlaceholder('/path/to/trace_processor_shell')).toBe(true);
+    expect(isTraceProcessorPathPlaceholder('C:\\path\\to\\trace_processor_shell')).toBe(true);
+    expect(isTraceProcessorPathPlaceholder('/absolute/path/to/trace_processor_shell')).toBe(true);
+    expect(isTraceProcessorPathPlaceholder('/opt/path/to/trace_processor_shell')).toBe(false);
+    expect(isTraceProcessorPathPlaceholder('/opt/perfetto/trace_processor_shell')).toBe(false);
+  });
+
+  it('falls back to backend/bin when TRACE_PROCESSOR_PATH is an example placeholder', () => {
+    const originalTraceProcessorPath = process.env.TRACE_PROCESSOR_PATH;
+    const backendBinPath = getBackendBinTraceProcessorPath();
+    const existsSpy = jest.spyOn(fs, 'existsSync').mockImplementation((candidate) => (
+      path.resolve(String(candidate)) === backendBinPath
+    ));
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    try {
+      process.env.TRACE_PROCESSOR_PATH = '/path/to/trace_processor_shell';
+      expect(getTraceProcessorPath()).toBe(backendBinPath);
+    } finally {
+      if (originalTraceProcessorPath === undefined) {
+        delete process.env.TRACE_PROCESSOR_PATH;
+      } else {
+        process.env.TRACE_PROCESSOR_PATH = originalTraceProcessorPath;
+      }
+      existsSpy.mockRestore();
+      warnSpy.mockRestore();
     }
   });
 });
