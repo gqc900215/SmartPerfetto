@@ -18,9 +18,6 @@ const traceProcessorExecutableName = process.platform === 'win32'
   ? 'trace_processor_shell.exe'
   : 'trace_processor_shell';
 const defaultOutput = path.join(repoRoot, 'perfetto/out/ui', traceProcessorExecutableName);
-const outputPath = process.env.TRACE_PROCESSOR_PATH
-  ? path.resolve(process.env.TRACE_PROCESSOR_PATH)
-  : defaultOutput;
 
 function parsePinFile(filePath) {
   if (!fs.existsSync(filePath)) {
@@ -41,11 +38,13 @@ function getPlatformAndSha(pins) {
   const arch = os.arch();
   let platform;
   let shaKey;
+  let prebuiltKey;
 
   if (process.platform === 'darwin') {
     if (arch === 'arm64') {
       platform = 'mac-arm64';
       shaKey = 'PERFETTO_SHELL_SHA256_MAC_ARM64';
+      prebuiltKey = 'darwin-arm64';
     } else if (arch === 'x64') {
       platform = 'mac-amd64';
       shaKey = 'PERFETTO_SHELL_SHA256_MAC_AMD64';
@@ -57,11 +56,13 @@ function getPlatformAndSha(pins) {
     } else if (arch === 'x64') {
       platform = 'linux-amd64';
       shaKey = 'PERFETTO_SHELL_SHA256_LINUX_AMD64';
+      prebuiltKey = 'linux-x64';
     }
   } else if (process.platform === 'win32') {
     if (arch === 'x64') {
       platform = 'windows-amd64';
       shaKey = 'PERFETTO_SHELL_SHA256_WINDOWS_AMD64';
+      prebuiltKey = 'win32-x64';
     }
   }
 
@@ -74,7 +75,12 @@ function getPlatformAndSha(pins) {
 
   const sha256 = pins[shaKey];
   if (!sha256) throw new Error(`Missing ${shaKey} in ${pinFile}`);
-  return { platform, sha256 };
+  return { platform, sha256, prebuiltKey };
+}
+
+function getPrebuiltPath(prebuiltKey) {
+  if (!prebuiltKey) return undefined;
+  return path.join(repoRoot, 'backend/prebuilts/trace_processor', prebuiltKey, traceProcessorExecutableName);
 }
 
 function sha256File(filePath) {
@@ -191,7 +197,13 @@ function formatDownloadHelp(url) {
 
 async function main() {
   const pins = parsePinFile(pinFile);
-  const { platform, sha256 } = getPlatformAndSha(pins);
+  const { platform, sha256, prebuiltKey } = getPlatformAndSha(pins);
+  const prebuiltPath = getPrebuiltPath(prebuiltKey);
+  const outputPath = process.env.TRACE_PROCESSOR_PATH
+    ? path.resolve(process.env.TRACE_PROCESSOR_PATH)
+    : prebuiltPath && fs.existsSync(prebuiltPath)
+      ? prebuiltPath
+      : defaultOutput;
 
   if (fs.existsSync(outputPath)) {
     const actual = sha256File(outputPath);

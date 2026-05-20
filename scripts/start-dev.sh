@@ -626,6 +626,23 @@ fetch_or_build_trace_processor() {
   build_trace_processor_from_source
 }
 
+trace_processor_prebuilt_candidate() {
+  local candidate=""
+  case "$(uname -s):$(uname -m)" in
+    Linux:x86_64|Linux:amd64)
+      candidate="$PROJECT_ROOT/backend/prebuilts/trace_processor/linux-x64/trace_processor_shell"
+      ;;
+    Darwin:arm64|Darwin:aarch64)
+      candidate="$PROJECT_ROOT/backend/prebuilts/trace_processor/darwin-arm64/trace_processor_shell"
+      ;;
+  esac
+  if [ -n "$candidate" ] && [ -f "$candidate" ]; then
+    echo "$candidate"
+  else
+    echo ""
+  fi
+}
+
 # Install UI node_modules using Perfetto's bundled pnpm
 install_ui_deps() {
   echo "Installing UI dependencies with Perfetto's bundled pnpm..."
@@ -687,7 +704,8 @@ smartperfetto_ensure_backend_deps "$PROJECT_ROOT"
 # prebuilt, and --prebuilt-only to disable source fallback. The repo-local
 # binary is treated as a pinned local artifact — delete it to re-acquire after
 # a perfetto submodule upgrade.
-TRACE_PROCESSOR="${TRACE_PROCESSOR_PATH:-$PERFETTO_DIR/out/ui/trace_processor_shell}"
+PREBUILT_TRACE_PROCESSOR="$(trace_processor_prebuilt_candidate)"
+TRACE_PROCESSOR="${TRACE_PROCESSOR_PATH:-${PREBUILT_TRACE_PROCESSOR:-$PERFETTO_DIR/out/ui/trace_processor_shell}}"
 if [ -n "${TRACE_PROCESSOR_PATH:-}" ]; then
   if [ ! -x "$TRACE_PROCESSOR" ]; then
     echo "ERROR: TRACE_PROCESSOR_PATH is not an executable file:"

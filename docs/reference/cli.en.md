@@ -33,7 +33,10 @@ The `@gracker/smartperfetto` npm package exposes the CLI entrypoint. The CLI reu
 npm install -g @gracker/smartperfetto
 ```
 
-The first analysis downloads the pinned `trace_processor_shell` if needed. If the download bucket is blocked, set `TRACE_PROCESSOR_PATH`, `TRACE_PROCESSOR_DOWNLOAD_BASE`, or `TRACE_PROCESSOR_DOWNLOAD_URL`.
+The npm CLI package bundles pinned `trace_processor_shell` prebuilts for Linux
+x64, macOS arm64, and Windows x64. Unsupported platforms still download the
+pinned binary on first trace use. If the download bucket is blocked, set
+`TRACE_PROCESSOR_PATH`, `TRACE_PROCESSOR_DOWNLOAD_BASE`, or `TRACE_PROCESSOR_DOWNLOAD_URL`.
 
 ## 3. Commands
 

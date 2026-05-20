@@ -112,6 +112,7 @@ target_field() {
     windows-x64:node_dir_suffix) echo "win-x64" ;;
     windows-x64:perfetto_platform) echo "windows-amd64" ;;
     windows-x64:perfetto_sha_key) echo "PERFETTO_SHELL_SHA256_WINDOWS_AMD64" ;;
+    windows-x64:trace_prebuilt_key) echo "win32-x64" ;;
     windows-x64:trace_name) echo "trace_processor_shell.exe" ;;
     windows-x64:asset_ext) echo "zip" ;;
     windows-x64:launcher_name) echo "SmartPerfetto.exe" ;;
@@ -128,6 +129,7 @@ target_field() {
     macos-arm64:node_dir_suffix) echo "darwin-arm64" ;;
     macos-arm64:perfetto_platform) echo "mac-arm64" ;;
     macos-arm64:perfetto_sha_key) echo "PERFETTO_SHELL_SHA256_MAC_ARM64" ;;
+    macos-arm64:trace_prebuilt_key) echo "darwin-arm64" ;;
     macos-arm64:trace_name) echo "trace_processor_shell" ;;
     macos-arm64:asset_ext) echo "zip" ;;
     macos-arm64:launcher_name) echo "SmartPerfetto" ;;
@@ -144,6 +146,7 @@ target_field() {
     linux-x64:node_dir_suffix) echo "linux-x64" ;;
     linux-x64:perfetto_platform) echo "linux-amd64" ;;
     linux-x64:perfetto_sha_key) echo "PERFETTO_SHELL_SHA256_LINUX_AMD64" ;;
+    linux-x64:trace_prebuilt_key) echo "linux-x64" ;;
     linux-x64:trace_name) echo "trace_processor_shell" ;;
     linux-x64:asset_ext) echo "tar.gz" ;;
     linux-x64:launcher_name) echo "SmartPerfetto" ;;
@@ -599,7 +602,7 @@ package_target() {
   local target="$1"
   local os_name arch_name package_name package_dir resources_dir asset_ext asset_path
   local node_sha node_file node_dir node_runtime_version node_archive node_dir_suffix
-  local perfetto_version perfetto_url_base perfetto_platform tp_sha_key tp_sha tp_url tp_cache trace_name
+  local perfetto_version tp_sha_key tp_sha trace_name trace_prebuilt_key tp_prebuilt tp_actual_sha
   local signed=false notarized=false
 
   os_name="$(target_field "$target" os_name)"
@@ -642,25 +645,32 @@ package_target() {
   mkdir -p "$resources_dir/runtime"
   copy_dir "$CACHE_DIR/$node_dir" "$resources_dir/runtime/node"
 
-  echo "Downloading trace_processor_shell for $target..."
+  echo "Copying bundled trace_processor_shell for $target..."
   perfetto_version="$(pin_value PERFETTO_VERSION)"
-  perfetto_url_base="$(pin_value PERFETTO_LUCI_URL_BASE)"
-  perfetto_platform="$(target_field "$target" perfetto_platform)"
   tp_sha_key="$(target_field "$target" perfetto_sha_key)"
   tp_sha="$(pin_value "$tp_sha_key")"
   trace_name="$(target_field "$target" trace_name)"
-  if [ -z "$perfetto_version" ] || [ -z "$perfetto_url_base" ] || [ -z "$tp_sha" ]; then
+  trace_prebuilt_key="$(target_field "$target" trace_prebuilt_key)"
+  if [ -z "$perfetto_version" ] || [ -z "$tp_sha" ]; then
     echo "ERROR: missing trace_processor_shell pin values for $target." >&2
     exit 1
   fi
-  tp_url="${perfetto_url_base%/}/${perfetto_version}/${perfetto_platform}/${trace_name}"
-  tp_cache="$CACHE_DIR/trace_processor_shell-${perfetto_version}-${perfetto_platform}"
-  if [ "$target" = "windows-x64" ]; then
-    tp_cache="$tp_cache.exe"
+  tp_prebuilt="$PROJECT_ROOT/backend/prebuilts/trace_processor/$trace_prebuilt_key/$trace_name"
+  if [ ! -f "$tp_prebuilt" ]; then
+    echo "ERROR: missing bundled trace_processor_shell for $target: $tp_prebuilt" >&2
+    echo "Run: npm run trace-processor:sync-prebuilts" >&2
+    exit 1
   fi
-  download_checked "$tp_url" "$tp_cache" "$tp_sha"
+  tp_actual_sha="$(sha256_file "$tp_prebuilt")"
+  if [ "$tp_actual_sha" != "$tp_sha" ]; then
+    echo "ERROR: bundled trace_processor_shell SHA256 mismatch for $target." >&2
+    echo "  expected: $tp_sha" >&2
+    echo "  actual:   $tp_actual_sha" >&2
+    echo "Run: npm run trace-processor:sync-prebuilts" >&2
+    exit 1
+  fi
   mkdir -p "$resources_dir/bin"
-  cp "$tp_cache" "$resources_dir/bin/$trace_name"
+  cp "$tp_prebuilt" "$resources_dir/bin/$trace_name"
   if [ "$target" != "windows-x64" ]; then
     chmod +x "$resources_dir/bin/$trace_name"
   fi

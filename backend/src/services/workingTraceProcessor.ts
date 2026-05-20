@@ -42,6 +42,20 @@ export function getBundledTraceProcessorPath(): string {
   return path.resolve(__dirname, '../../../perfetto/out/ui', executableName);
 }
 
+export function getPrebuiltTraceProcessorPlatformKey(): string | undefined {
+  if (process.platform === 'linux' && process.arch === 'x64') return 'linux-x64';
+  if (process.platform === 'darwin' && process.arch === 'arm64') return 'darwin-arm64';
+  if (process.platform === 'win32' && process.arch === 'x64') return 'win32-x64';
+  return undefined;
+}
+
+export function getPrebuiltTraceProcessorPath(): string | undefined {
+  const platformKey = getPrebuiltTraceProcessorPlatformKey();
+  if (!platformKey) return undefined;
+  const executableName = process.platform === 'win32' ? 'trace_processor_shell.exe' : 'trace_processor_shell';
+  return path.resolve(__dirname, '../../prebuilts/trace_processor', platformKey, executableName);
+}
+
 export function getBackendBinTraceProcessorPath(): string {
   const executableName = process.platform === 'win32' ? 'trace_processor_shell.exe' : 'trace_processor_shell';
   return path.resolve(__dirname, '../../bin', executableName);
@@ -87,6 +101,9 @@ function resolveEnvTraceProcessorPath(): string | undefined {
 export function getTraceProcessorPath(): string {
   const envPath = resolveEnvTraceProcessorPath();
   if (envPath) return envPath;
+
+  const prebuiltPath = getPrebuiltTraceProcessorPath();
+  if (prebuiltPath && fs.existsSync(prebuiltPath)) return prebuiltPath;
 
   const bundledPath = getBundledTraceProcessorPath();
   if (fs.existsSync(bundledPath)) return bundledPath;

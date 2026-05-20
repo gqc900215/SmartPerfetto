@@ -237,6 +237,20 @@ download_trace_processor_prebuilt() {
   echo "Downloaded: $("$dest" --version 2>/dev/null | head -1)"
 }
 
+trace_processor_prebuilt_candidate() {
+  case "$(uname -s):$(uname -m)" in
+    Linux:x86_64|Linux:amd64)
+      echo "$PROJECT_ROOT/backend/prebuilts/trace_processor/linux-x64/trace_processor_shell"
+      ;;
+    Darwin:arm64|Darwin:aarch64)
+      echo "$PROJECT_ROOT/backend/prebuilts/trace_processor/darwin-arm64/trace_processor_shell"
+      ;;
+    *)
+      echo ""
+      ;;
+  esac
+}
+
 # ── Parse args ────────────────────────────────────────────────────────────────
 
 for arg in "$@"; do
@@ -328,9 +342,11 @@ sleep 1
 
 # ── trace_processor_shell ─────────────────────────────────────────────────────
 
-# Search order: TRACE_PROCESSOR_PATH env > backend/bin/ > perfetto/out/ui/
+# Search order: TRACE_PROCESSOR_PATH env > repo prebuilt > backend/bin/ > perfetto/out/ui/
+PREBUILT_TRACE_PROCESSOR="$(trace_processor_prebuilt_candidate)"
 TRACE_PROCESSOR_CANDIDATES=(
   "${TRACE_PROCESSOR_PATH:-}"
+  "$PREBUILT_TRACE_PROCESSOR"
   "$PROJECT_ROOT/backend/bin/trace_processor_shell"
   "$PROJECT_ROOT/perfetto/out/ui/trace_processor_shell"
 )

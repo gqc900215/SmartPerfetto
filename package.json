@@ -24,6 +24,7 @@
     "package:linux": "./scripts/package-portable.sh --targets linux-x64",
     "version:sync": "node scripts/sync-version.cjs",
     "version:set": "node scripts/sync-version.cjs",
+    "trace-processor:sync-prebuilts": "node scripts/sync-trace-processor-prebuilts.cjs",
     "release:portable": "./scripts/release-portable.sh",
     "release:windows-exe": "./scripts/release-windows-exe.sh",
     "quality": "npm run lint && npm run format:check && npm run deadcode && npm run shellcheck",

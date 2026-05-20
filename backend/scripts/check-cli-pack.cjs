@@ -20,6 +20,9 @@ const requiredFiles = [
   'data/perfettoSqlIndex.light.json',
   'data/perfettoSqlIndex.json',
   'data/perfettoStdlibSymbols.json',
+  'prebuilts/trace_processor/linux-x64/trace_processor_shell',
+  'prebuilts/trace_processor/darwin-arm64/trace_processor_shell',
+  'prebuilts/trace_processor/win32-x64/trace_processor_shell.exe',
   'skills/composite/scrolling_analysis.skill.yaml',
   'strategies/scrolling.strategy.md',
 ];

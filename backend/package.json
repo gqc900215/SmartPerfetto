@@ -19,6 +19,7 @@
     "skills/**/*",
     "strategies/**/*",
     "sql/smartperfetto/**/*",
+    "prebuilts/**/*",
     ".env.example",
     "LICENSE",
     "package.json"
