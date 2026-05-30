@@ -1156,6 +1156,242 @@ describe('final result quality gate', () => {
     })).toBeUndefined();
   });
 
+  it('flags startup reports that omit user-requested diagnostic API boundaries', () => {
+    const issue = assessFinalResultQuality({
+      result: result({
+        claimVerificationResult: {
+          schemaVersion: 'claim_verifier@1',
+          status: 'passed',
+          policy: 'record_only',
+          passed: true,
+          checkedClaimCount: 1,
+          unsupportedClaimCount: 0,
+          claimResults: [{ claimId: 'claim-startup', status: 'verified' }],
+          issues: [],
+        },
+      }),
+      query: '用 ApplicationStartInfo STARTUP_STATE 和 App Performance Score 分析启动 TTID/TTFD',
+      sceneType: 'startup',
+    });
+
+    expect(issue?.code).toBe('scene_contract_incomplete');
+    expect(issue?.message).toContain('启动诊断 API/外部指标边界');
+  });
+
+  it('accepts startup reports that separate ApplicationStartInfo and external metrics from trace proof', () => {
+    const richStartupReport = [
+      '# 启动性能分析报告',
+      '',
+      '## 启动类型与 TTID/TTFD',
+      '',
+      '启动类型为冷启动，TTID=1912ms，TTFD=2200ms。',
+      '',
+      '## 阶段耗时分解',
+      '',
+      '- startup_detail phase breakdown 显示 bindApplication self_ms=120ms，activityStart self_ms=240ms。',
+      '',
+      '## 根因编号引用',
+      '',
+      '- 根因编号 A5 / B2 对应类加载与首帧后数据加载。',
+      '',
+      '## 启动诊断 API/外部指标边界',
+      '',
+      '- diagnostic_api: ApplicationStartInfo / getHistoricalProcessStartReasons 返回 STARTUP_STATE 和 START_REASON，API 35 / Android 15 可用；START_COMPONENT 属于 API 36。',
+      '- record state 为 incomplete/in-progress 时只作候选；START_TIMESTAMP 使用独立 clock/timestamp，需要与 current trace window、TTID、TTFD 对齐。',
+      '- external_aggregate / experiment: App Performance Score、Play Vitals、APM、A/B 需要 device、sample、activation 和 A/A sanity；缺失时 confidence 保持中等，不能替代本次 trace 根因。',
+      '',
+      '## 优化建议',
+      '',
+      '- [App层] 延后非首屏初始化。',
+      '- [系统/平台层] 当前无系统侧阻塞证据。',
+    ].join('\n');
+
+    expect(assessFinalResultQuality({
+      result: result({ conclusion: richStartupReport }),
+      query: '用 ApplicationStartInfo STARTUP_STATE 和 App Performance Score 分析启动 TTID/TTFD',
+      sceneType: 'startup',
+    })).toBeUndefined();
+  });
+
+  it('flags memory reports that omit user-requested diagnostic API boundaries', () => {
+    const richWithoutDiagnosticBoundary = [
+      '# 内存分析报告',
+      '',
+      '## 综合结论',
+      '',
+      'PSS/RSS 上涨 120MB，当前只能支持内存压力候选，不能直接判定泄漏。',
+      '',
+      '## 证据范围',
+      '',
+      '- 证据来源：PSS、RSS、Java Heap、Native Heap、Graphics/dma-buf、GC、LMK、heap graph 缺失和 missing evidence 均已列出。',
+      '',
+      '## 内存类型拆分',
+      '',
+      '- Java Heap 增长，Native Heap / Graphics-dma-buf 暂无证据；GC churn 存在，LMK/freezer/OOM 未命中，不能写成 leak。',
+      '',
+      '## 置信度与缺失证据',
+      '',
+      '- 证据不足：需要区分高内存与泄漏，missing heap graph 时 confidence 为中等，不能把缺失证据写成没有问题。',
+    ].join('\n');
+
+    const issue = assessFinalResultQuality({
+      result: result({ conclusion: richWithoutDiagnosticBoundary }),
+      query: '用 ApplicationExitInfo REASON_LOW_MEMORY 和 ProfilingManager heap dump 分析 OOM',
+      sceneType: 'memory',
+    });
+
+    expect(issue?.code).toBe('scene_contract_incomplete');
+    expect(issue?.message).toContain('内存诊断 API/剖析产物边界');
+  });
+
+  it('accepts memory reports that separate ApplicationExitInfo and profiling artifacts', () => {
+    const richMemoryDiagnosticReport = [
+      '# 内存分析报告',
+      '',
+      '## 综合结论',
+      '',
+      'PSS/RSS 上涨 120MB，ApplicationExitInfo 只支持低内存退出背景，不能单独证明 Java leak。',
+      '',
+      '## 证据范围',
+      '',
+      '- 证据来源：PSS、RSS、Java Heap、Native Heap、Graphics/dma-buf、GC、LMK、heap graph missing evidence 均已列出。',
+      '',
+      '## 内存类型拆分',
+      '',
+      '- Java Heap 增长，Native Heap / Graphics-dma-buf 暂无证据；GC churn 存在，LMK/freezer/OOM 需要 ApplicationExitInfo 补证，不等于 leak。',
+      '',
+      '## 置信度与缺失证据',
+      '',
+      '- missing heap graph 与 smaps 时 confidence 为中等，不能把高内存直接写成泄漏。',
+      '',
+      '## 内存诊断 API/剖析产物边界',
+      '',
+      '- diagnostic_api: ApplicationExitInfo / getHistoricalProcessExitReasons 命中 REASON_LOW_MEMORY，API 30 / Android 11+，reason、process、pid/upid、timestamp 与 record 需要核对。',
+      '- profiling_artifact: ProfilingManager / ProfilingTrigger Java heap dump 与 heap profile 需要 result file / artifact 路径和采样时间。',
+      '- external_aggregate: KOOM/APM 只能作背景；必须和 current trace window align，对齐缺失时写 missing evidence，confidence 不提升，not prove leak。',
+    ].join('\n');
+
+    expect(assessFinalResultQuality({
+      result: result({ conclusion: richMemoryDiagnosticReport }),
+      query: '用 ApplicationExitInfo REASON_LOW_MEMORY 和 ProfilingManager heap dump 分析 OOM',
+      sceneType: 'memory',
+    })).toBeUndefined();
+  });
+
+  it('flags ANR reports that omit user-requested diagnostic API boundaries', () => {
+    const shortAnrReport = [
+      '# ANR 分析报告',
+      '',
+      '## 综合结论',
+      '',
+      'ANR 发生在 5000ms 输入窗口，main thread Q4 Sleeping=82%，direct_blocker 是 Binder wait 1200ms。',
+    ].join('\n');
+
+    const issue = assessFinalResultQuality({
+      result: result({
+        conclusion: shortAnrReport,
+        claimVerificationResult: {
+          schemaVersion: 'claim_verifier@1',
+          status: 'passed',
+          policy: 'record_only',
+          passed: true,
+          checkedClaimCount: 1,
+          unsupportedClaimCount: 0,
+          claimResults: [{ claimId: 'claim-anr', status: 'verified' }],
+          issues: [],
+        },
+      }),
+      query: '用 ApplicationExitInfo getAnrInfo 和 ProfilingTrigger ANR system trace 分析 ANR',
+      sceneType: 'anr',
+    });
+
+    expect(issue?.code).toBe('scene_contract_incomplete');
+    expect(issue?.message).toContain('ANR 诊断 API/外部聚合边界');
+  });
+
+  it('accepts ANR reports that separate diagnostic APIs, profiling artifacts, and Vitals', () => {
+    const richAnrReport = [
+      '# ANR 分析报告',
+      '',
+      '## 综合结论',
+      '',
+      '当前 trace 的 Perfetto ANR window 为 5000ms，direct_blocker 是 Binder wait 1200ms；外部记录只提升置信度。',
+      '',
+      '## ANR 诊断 API/外部聚合边界',
+      '',
+      '- system-confirmed / diagnostic_api: ApplicationExitInfo getAnrInfo REASON_ANR 在 API 37 / Android 17 才提供 ANR reason，timestamp 需要和 event window 对齐。',
+      '- profiling_artifact: ProfilingManager / ProfilingTrigger TRIGGER_TYPE_ANR system trace artifact 只能补充采样窗口；trigger type、artifact 时间和 current trace 需要 align。',
+      '- external_aggregate: Play Vitals / Android Vitals user-perceived ANR、client watchdog 和 SDK watchdog 是聚合/预警，不 replace Perfetto direct_blocker、logcat、Binder、lock 证据。',
+      '- missing ApplicationExitInfo 或 artifact 时 confidence 不能提升，不能不可替代当前 trace 根因链。',
+    ].join('\n');
+
+    expect(assessFinalResultQuality({
+      result: result({ conclusion: richAnrReport }),
+      query: '用 ApplicationExitInfo getAnrInfo 和 ProfilingTrigger ANR system trace 分析 ANR',
+      sceneType: 'anr',
+    })).toBeUndefined();
+  });
+
+  it('does not require diagnostic API sections for generic ANR reports', () => {
+    const genericAnrReport = [
+      '# ANR 分析报告',
+      '',
+      '## 综合结论',
+      '',
+      'ANR 窗口 5000ms，main thread Q4 Sleeping=82%，direct_blocker Binder wait=1200ms，logcat 与 Binder 对端证据对齐。',
+      '',
+      '## 关键证据链',
+      '',
+      '- anr_analysis 提供 freeze_verdict=app_specific、timeout_source=Perfetto、confidence=高。',
+    ].join('\n');
+
+    expect(assessFinalResultQuality({
+      result: result({
+        conclusion: genericAnrReport,
+        claimVerificationResult: {
+          schemaVersion: 'claim_verifier@1',
+          status: 'passed',
+          policy: 'record_only',
+          passed: true,
+          checkedClaimCount: 1,
+          unsupportedClaimCount: 0,
+          claimResults: [{ claimId: 'claim-anr-generic', status: 'verified' }],
+          issues: [],
+        },
+      }),
+      query: '分析 ANR direct blocker',
+      sceneType: 'anr',
+    })).toBeUndefined();
+  });
+
+  it('does not require diagnostic API sections for generic ANR system trace or stack trace reports', () => {
+    const genericTraceReport = [
+      '# ANR 分析报告',
+      '',
+      '## 综合结论',
+      '',
+      'system trace 与 stack trace 显示主线程 Binder wait 1200ms，Perfetto ANR window 和 logcat 事件窗口对齐。',
+    ].join('\n');
+
+    expect(assessFinalResultQuality({
+      result: result({
+        conclusion: genericTraceReport,
+        claimVerificationResult: {
+          schemaVersion: 'claim_verifier@1',
+          status: 'passed',
+          policy: 'record_only',
+          passed: true,
+          checkedClaimCount: 1,
+          unsupportedClaimCount: 0,
+          claimResults: [{ claimId: 'claim-anr-stack', status: 'verified' }],
+          issues: [],
+        },
+      }),
+      query: '分析 ANR system trace 和 stack trace 的 direct blocker',
+      sceneType: 'anr',
+    })).toBeUndefined();
+  });
+
   it('flags io reports that turn fsync into database root cause without boundaries', () => {
     const shortIoReport = [
       '# I/O 分析报告',

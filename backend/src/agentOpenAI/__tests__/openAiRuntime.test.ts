@@ -727,6 +727,87 @@ describe('OpenAIRuntime plan completion guard', () => {
     })).toBe(true);
   });
 
+  it('requests final-report continuation when startup diagnostic API boundaries are incomplete', () => {
+    const runtime = new OpenAIRuntime({} as any) as any;
+    const planStatus = {
+      complete: true,
+      hasPlan: true,
+      pendingPhases: [],
+    };
+
+    expect(runtime.shouldRequestFinalReportAfterPlanComplete({
+      quickMode: false,
+      planStatus,
+      conclusion: [
+        '# 启动性能分析报告',
+        '',
+        '## 综合结论',
+        '',
+        'ApplicationStartInfo 显示启动慢，App Performance Score 偏低，建议优化启动。',
+      ].join('\n'),
+      fallbackConclusion: undefined,
+      completedByPlanIdle: false,
+      timedOut: false,
+      finalReportContinuations: 0,
+      query: '用 ApplicationStartInfo STARTUP_STATE 和 App Performance Score 分析启动 TTID/TTFD',
+      sceneType: 'startup',
+    })).toBe(true);
+  });
+
+  it('requests final-report continuation when memory diagnostic API boundaries are incomplete', () => {
+    const runtime = new OpenAIRuntime({} as any) as any;
+    const planStatus = {
+      complete: true,
+      hasPlan: true,
+      pendingPhases: [],
+    };
+
+    expect(runtime.shouldRequestFinalReportAfterPlanComplete({
+      quickMode: false,
+      planStatus,
+      conclusion: [
+        '# 内存分析报告',
+        '',
+        '## 综合结论',
+        '',
+        'ApplicationExitInfo REASON_LOW_MEMORY 说明 OOM 来自内存泄漏，建议优化对象释放。',
+      ].join('\n'),
+      fallbackConclusion: undefined,
+      completedByPlanIdle: false,
+      timedOut: false,
+      finalReportContinuations: 0,
+      query: '用 ApplicationExitInfo REASON_LOW_MEMORY 和 ProfilingManager heap dump 分析 OOM',
+      sceneType: 'memory',
+    })).toBe(true);
+  });
+
+  it('requests final-report continuation when ANR diagnostic API boundaries are incomplete', () => {
+    const runtime = new OpenAIRuntime({} as any) as any;
+    const planStatus = {
+      complete: true,
+      hasPlan: true,
+      pendingPhases: [],
+    };
+
+    expect(runtime.shouldRequestFinalReportAfterPlanComplete({
+      quickMode: false,
+      planStatus,
+      conclusion: [
+        '# ANR 分析报告',
+        '',
+        '## 综合结论',
+        '',
+        'ApplicationExitInfo getAnrInfo 和 ProfilingTrigger system trace 说明当前 ANR 是系统确认根因。',
+      ].join('\n'),
+      fallbackConclusion: undefined,
+      completedByPlanIdle: false,
+      timedOut: false,
+      finalReportContinuations: 0,
+      query: '用 ApplicationExitInfo getAnrInfo 和 ProfilingTrigger ANR system trace 分析 ANR',
+      sceneType: 'anr',
+    })).toBe(true);
+  });
+
   it('uses a full-report continuation prompt that preserves scene-specific sections', () => {
     const runtime = new OpenAIRuntime({} as any) as any;
 

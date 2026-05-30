@@ -76,12 +76,35 @@ describe('strategyLoader tolerates leading SPDX HTML comments', () => {
       'phase_breakdown',
       'root_cause_references',
       'audience_recommendations',
+      'startup_diagnostic_api_boundary',
+    ]));
+    expect(getFinalReportContract('startup')?.requiredSections.find(section =>
+      section.id === 'startup_diagnostic_api_boundary',
+    )?.triggerPatterns).toEqual(expect.arrayContaining([
+      'ApplicationStartInfo|getHistoricalProcessStartReasons|STARTUP_STATE|START_TIMESTAMP|START_REASON|START_COMPONENT',
     ]));
 
     expect(getFinalReportContract('memory')?.requiredSections.map(section => section.id)).toEqual(expect.arrayContaining([
       'memory_evidence_scope',
       'memory_type_breakdown',
       'memory_confidence_boundary',
+      'memory_diagnostic_api_boundary',
+    ]));
+    expect(getFinalReportContract('memory')?.requiredSections.find(section =>
+      section.id === 'memory_diagnostic_api_boundary',
+    )?.triggerPatterns).toEqual(expect.arrayContaining([
+      'ApplicationExitInfo|getHistoricalProcessExitReasons|REASON_LOW_MEMORY|REASON_FREEZER|REASON_EXCESSIVE_RESOURCE_USAGE',
+    ]));
+
+    const anrContract = getFinalReportContract('anr');
+    expect(anrContract?.requiredSections.map(section => section.id)).toEqual(expect.arrayContaining([
+      'anr_diagnostic_api_boundary',
+    ]));
+    expect(anrContract?.requiredSections.find(section =>
+      section.id === 'anr_diagnostic_api_boundary',
+    )?.triggerPatterns).toEqual(expect.arrayContaining([
+      'ApplicationExitInfo|getHistoricalProcessExitReasons|getAnrInfo|REASON_ANR',
+      'ProfilingManager|ProfilingTrigger|TRIGGER_TYPE_ANR',
     ]));
 
     expect(getFinalReportContract('io')?.requiredSections.map(section => section.id)).toEqual(expect.arrayContaining([
@@ -179,8 +202,29 @@ describe('strategyLoader tolerates leading SPDX HTML comments', () => {
       'memory_evidence_gate',
       'lmk_freezer_oom_boundary',
       'gc_churn_boundary',
+      'memory_diagnostic_api_boundary',
     ]));
     expect(hints.find(hint => hint.id === 'memory_evidence_gate')?.criticalTools).toContain('memory_analysis');
+    expect(hints.find(hint => hint.id === 'memory_diagnostic_api_boundary')?.criticalTools).toEqual(expect.arrayContaining([
+      'memory_analysis',
+      'lookup_knowledge',
+    ]));
+  });
+
+  it('loads startup and ANR phase_hints for diagnostic API evidence boundaries', () => {
+    const startupHints = getPhaseHints('startup');
+    expect(startupHints.map(hint => hint.id)).toContain('startup_diagnostic_api_boundary');
+    expect(startupHints.find(hint => hint.id === 'startup_diagnostic_api_boundary')?.criticalTools).toEqual(expect.arrayContaining([
+      'startup_analysis',
+      'lookup_knowledge',
+    ]));
+
+    const anrHints = getPhaseHints('anr');
+    expect(anrHints.map(hint => hint.id)).toContain('anr_diagnostic_api_boundary');
+    expect(anrHints.find(hint => hint.id === 'anr_diagnostic_api_boundary')?.criticalTools).toEqual(expect.arrayContaining([
+      'anr_analysis',
+      'lookup_knowledge',
+    ]));
   });
 
   it('loads io phase_hints for storage evidence boundaries', () => {
@@ -277,6 +321,13 @@ describe('strategyLoader tolerates leading SPDX HTML comments', () => {
     expect(networkKnowledge).toContain('Network Evidence Boundaries');
     expect(networkKnowledge).toContain('request_telemetry');
     expect(networkKnowledge).toContain('local-network permission');
+
+    const observabilityKnowledge = loadPromptTemplate('knowledge-observability-diagnostics');
+    expect(observabilityKnowledge).toContain('ApplicationExitInfo');
+    expect(observabilityKnowledge).toContain('ApplicationStartInfo');
+    expect(observabilityKnowledge).toContain('ProfilingManager');
+    expect(observabilityKnowledge).toContain('Play Vitals');
+    expect(observabilityKnowledge).toContain('App Performance Score');
   });
 
   it('keeps the quick prompt wired for machine-parseable claim provenance', () => {

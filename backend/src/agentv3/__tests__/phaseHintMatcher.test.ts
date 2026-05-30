@@ -9,9 +9,9 @@
  * a critical fallback because that polluted unrelated phases in e2e runs.
  */
 
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, beforeAll } from '@jest/globals';
 import { matchPhaseHintForNextPhase } from '../phaseHintMatcher';
-import type { PhaseHint } from '../strategyLoader';
+import { getPhaseHints, invalidateStrategyCache, type PhaseHint } from '../strategyLoader';
 
 const overviewHint: PhaseHint = {
   id: 'overview',
@@ -54,6 +54,8 @@ const displayPipelineHint: PhaseHint = {
 };
 
 describe('matchPhaseHintForNextPhase', () => {
+  beforeAll(() => invalidateStrategyCache());
+
   it('returns undefined when no hints are configured', () => {
     expect(matchPhaseHintForNextPhase({
       hints: [],
@@ -175,6 +177,44 @@ describe('matchPhaseHintForNextPhase', () => {
     });
 
     expect(result?.id).toBe('display_pipeline_boundary');
+  });
+
+  it('matches observability diagnostic hints only when diagnostic APIs are explicit', () => {
+    expect(matchPhaseHintForNextPhase({
+      hints: getPhaseHints('startup'),
+      nextPhase: {
+        name: 'ApplicationStartInfo 对齐',
+        goal: '核对 STARTUP_STATE、START_TIMESTAMP 与当前 trace TTID/TTFD 的时间边界',
+      },
+      finishedPhases: [],
+    })?.id).toBe('startup_diagnostic_api_boundary');
+
+    expect(matchPhaseHintForNextPhase({
+      hints: getPhaseHints('memory'),
+      nextPhase: {
+        name: 'ApplicationExitInfo / ProfilingManager 补证',
+        goal: '对齐 REASON_LOW_MEMORY、heap dump artifact 和当前 memory trace 窗口',
+      },
+      finishedPhases: [],
+    })?.id).toBe('memory_diagnostic_api_boundary');
+
+    expect(matchPhaseHintForNextPhase({
+      hints: getPhaseHints('anr'),
+      nextPhase: {
+        name: 'ProfilingTrigger ANR artifact 对齐',
+        goal: '核对 TRIGGER_TYPE_ANR、ApplicationExitInfo getAnrInfo 和当前 Perfetto ANR window',
+      },
+      finishedPhases: [],
+    })?.id).toBe('anr_diagnostic_api_boundary');
+
+    expect(matchPhaseHintForNextPhase({
+      hints: getPhaseHints('startup'),
+      nextPhase: {
+        name: '启动耗时测量',
+        goal: '调用 startup_analysis 输出 TTID 和 TTFD',
+      },
+      finishedPhases: [],
+    })?.id).not.toBe('startup_diagnostic_api_boundary');
   });
 
   it('handles missing goal gracefully', () => {

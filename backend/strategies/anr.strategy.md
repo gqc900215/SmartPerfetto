@@ -26,6 +26,24 @@ keywords:
   - 冻屏
   - freeze
   - 卡死
+compound_patterns:
+  - "(ApplicationExitInfo|getHistoricalProcessExitReasons|ProfilingManager|ProfilingTrigger|Play Vitals|Android Vitals|client watchdog|SDK watchdog).*(ANR|not responding|无响应|卡死)"
+  - "(ANR|not responding|无响应|卡死).*(ApplicationExitInfo|getHistoricalProcessExitReasons|ProfilingManager|ProfilingTrigger|Play Vitals|Android Vitals|client watchdog|SDK watchdog)"
+
+final_report_contract:
+  required_sections:
+    - id: anr_diagnostic_api_boundary
+      label: ANR 诊断 API/外部聚合边界
+      description: '当用户主动提到 ApplicationExitInfo、ProfilingTrigger、Play/Android Vitals 或客户端 watchdog 时，区分系统确认 ANR、客户端预警、Profiling artifact、Play 聚合和当前 trace 根因证据。'
+      trigger_patterns:
+        - 'ApplicationExitInfo|getHistoricalProcessExitReasons|getAnrInfo|REASON_ANR'
+        - 'ProfilingManager|ProfilingTrigger|TRIGGER_TYPE_ANR'
+        - 'Play Vitals|Android Vitals|user-perceived ANR|client watchdog|SDK watchdog'
+      pattern_groups:
+        - ['ANR 诊断 API/外部聚合边界', 'ANR diagnostic API', 'system-confirmed', 'client watchdog', 'Play Vitals', 'ProfilingTrigger', 'ApplicationExitInfo']
+        - ['diagnostic_api', 'profiling_artifact', 'external_aggregate', 'ApplicationExitInfo', 'getAnrInfo', 'REASON_ANR', 'ProfilingManager', 'ProfilingTrigger', 'TRIGGER_TYPE_ANR', 'Play Vitals', 'Android Vitals', 'watchdog']
+        - ['API\s*3[067]', 'Android\s*1[167]', 'version', '版本', 'reason', 'trigger type', 'timeout', 'ANR window', 'event window', 'timestamp', 'artifact']
+        - ['current trace', 'Perfetto', 'direct_blocker', 'logcat', 'Binder', 'lock', 'align', '对齐', 'missing', '缺失', 'confidence', '不能', '不可', 'not replace']
 
 phase_hints:
   - id: freeze_verdict
@@ -33,6 +51,11 @@ phase_hints:
     constraints: 'freeze_verdict 是第一优先级门控。system freeze → 系统原因排查；app_specific → 进入 App 根因决策树（5 步子流程）。禁止在未确认 freeze_verdict 前直接分析 App 代码。'
     critical_tools: ['anr_analysis']
     critical: true
+  - id: anr_diagnostic_api_boundary
+    keywords: ['ApplicationExitInfo', 'getHistoricalProcessExitReasons', 'getAnrInfo', 'REASON_ANR', 'ProfilingManager', 'ProfilingTrigger', 'TRIGGER_TYPE_ANR', 'Play Vitals', 'Android Vitals', 'client watchdog', 'SDK watchdog']
+    constraints: 'ApplicationExitInfo、ProfilingTrigger 产物、Play/Android Vitals、客户端 watchdog 都只能补充 ANR 证据。必须说明 API/Android 版本、reason/trigger type、record/artifact 时间、事件窗口对齐；根因仍需 Perfetto ANR window、direct_blocker、logcat、Binder/lock/IO/GC/scheduler 证据闭环。'
+    critical_tools: ['anr_analysis', 'lookup_knowledge']
+    critical: false
 
 plan_template:
   mandatory_aspects:
@@ -78,6 +101,7 @@ plan_template:
 - Binder wait 需要对端/服务端证据；锁等待需要 owner/monitor chain；CPU/IO/内存压力需要与同一窗口的主线程、系统负载或日志闭环。
 - AnrManager/ActivityManager 的 “ANR in ...” 往往是 dump 或报告时刻，不必然等于真实触发起点；用它校验上下文，不替代 Perfetto ANR 时间窗。
 - 输入类 ANR 必须区分 `wq`/FINISHED timeout、stale drop、InputChannel 创建/断连、target/focused window 缺失和 App main-thread blocking。`wq`/queue age 是未 ACK 症状和计时基础，不是 Binder、App 业务代码或 InputDispatcher 根因本身；stale drop 也不是系统确认 ANR。
+- ApplicationExitInfo、ProfilingManager/ProfilingTrigger 产物、Play/Android Vitals 和客户端 watchdog 是不同证据层。它们可以帮助确认历史退出、预警、采样窗口或线上影响面，但不能替代当前 Perfetto ANR window、direct blocker、事件级 logcat、Binder/lock/IO/GC/scheduler 证据链。需要机制背景时调用 `lookup_knowledge("observability-diagnostics")`。
 
 #### ANR 场景关键 Stdlib 表
 

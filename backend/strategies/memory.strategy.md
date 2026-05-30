@@ -31,6 +31,10 @@ compound_patterns:
   - "内存.*不足"
   - "memory.*leak"
   - "memory.*pressure"
+  - "(ApplicationExitInfo|getHistoricalProcessExitReasons|REASON_LOW_MEMORY|REASON_FREEZER|REASON_EXCESSIVE_RESOURCE_USAGE).*(OOM|LMK|freezer|memory|low memory|kill|内存|杀进程)"
+  - "(OOM|LMK|freezer|memory|low memory|kill|内存|杀进程).*(ApplicationExitInfo|getHistoricalProcessExitReasons|REASON_LOW_MEMORY|REASON_FREEZER|REASON_EXCESSIVE_RESOURCE_USAGE)"
+  - "(ProfilingManager|ProfilingTrigger|heap dump|heap profile|Java heap dump).*(OOM|memory|heap|leak|内存|泄漏)"
+  - "(OOM|memory|heap|leak|内存|泄漏).*(ProfilingManager|ProfilingTrigger|heap dump|heap profile|Java heap dump)"
 
 final_report_contract:
   required_sections:
@@ -52,6 +56,17 @@ final_report_contract:
       pattern_groups:
         - ['证据不足', '缺失', 'missing', 'limitation', '限制', '置信', 'confidence', '需补', '建议采集']
         - ['不等于', '不能', '不得', '区分', '边界', 'separate', 'not']
+    - id: memory_diagnostic_api_boundary
+      label: 内存诊断 API/剖析产物边界
+      description: '当用户主动提到 ApplicationExitInfo、ProfilingManager、ProfilingTrigger、heap dump/profile、KOOM 或 APM 时，区分当前 trace 内存证据、退出记录、剖析产物、外部聚合和缺失证据。'
+      trigger_patterns:
+        - 'ApplicationExitInfo|getHistoricalProcessExitReasons|REASON_LOW_MEMORY|REASON_FREEZER|REASON_EXCESSIVE_RESOURCE_USAGE'
+        - 'ProfilingManager|ProfilingTrigger|heap dump|heap profile|Java heap dump|KOOM|APM'
+      pattern_groups:
+        - ['内存诊断 API/剖析产物边界', 'memory diagnostic API', 'profiling artifact', 'ApplicationExitInfo', 'ProfilingManager', 'ProfilingTrigger', 'heap dump', 'heap profile']
+        - ['diagnostic_api', 'profiling_artifact', 'external_aggregate', 'ApplicationExitInfo', 'getHistoricalProcessExitReasons', 'REASON_LOW_MEMORY', 'REASON_FREEZER', 'REASON_EXCESSIVE_RESOURCE_USAGE', 'ProfilingManager', 'ProfilingTrigger', 'KOOM', 'APM']
+        - ['API\s*3[0567]', 'Android\s*1[1567]', 'version', '版本', 'reason', 'process', 'pid', 'upid', 'timestamp', 'result file', 'artifact', 'record']
+        - ['trace window', 'current trace', 'align', '对齐', 'missing', '缺失', 'confidence', '置信', '不能', '不可', 'not prove', 'not equal']
 
 phase_hints:
   - id: memory_evidence_gate
@@ -69,6 +84,11 @@ phase_hints:
     constraints: 'GC 与卡顿/ANR 重叠只能说明相关性。必须结合 GC pause、allocation churn、线程状态或帧/ANR窗口证据，避免把后台 GC 或普通回收直接写成根因。'
     critical_tools: ['memory_analysis', 'gc_analysis']
     critical: false
+  - id: memory_diagnostic_api_boundary
+    keywords: ['ApplicationExitInfo', 'getHistoricalProcessExitReasons', 'REASON_LOW_MEMORY', 'REASON_FREEZER', 'REASON_EXCESSIVE_RESOURCE_USAGE', 'ProfilingManager', 'ProfilingTrigger', 'heap dump', 'heap profile', 'KOOM', 'APM']
+    constraints: 'ApplicationExitInfo、ProfilingManager/ProfilingTrigger、heap dump/profile、KOOM/APM 都是补充证据。必须说明 API/Android 版本、record/artifact 时间、进程身份、reason/result file、与当前 trace 的对齐关系；不得把高内存直接等同泄漏，也不得把缺少退出记录写成没有 OOM/LMK。'
+    critical_tools: ['memory_analysis', 'lmk_analysis', 'lookup_knowledge']
+    critical: false
 
 plan_template:
   mandatory_aspects:
@@ -83,7 +103,7 @@ plan_template:
 1. **先分证据源**：PSS/RSS、Java Heap、Native Heap、Graphics/dma-buf、GC、LMK/freezer、heap graph、ApplicationExitInfo/MemoryLimiter 等是不同口径。
 2. **高内存不是泄漏**：必须先判断趋势、对象/类型归属、GC 后是否回落、缓存策略和进程角色，不能只凭峰值下结论。
 3. **LMK/freezer/OOM 不能混用**：LMK 是系统低内存杀进程，freezer 是 cached process 冻结机制，Java/Native OOM 是进程内分配失败，MemoryLimiter 是版本敏感的系统退出原因。
-4. **外部诊断是补充证据**：ApplicationExitInfo、线上 OOM/KOOM、heap dump、APM 指标可以补上下文，但必须标明来源、版本/API 边界和与当前 trace 的对应关系。
+4. **外部诊断是补充证据**：ApplicationExitInfo、ProfilingManager/ProfilingTrigger 产物、线上 OOM/KOOM、heap dump、APM 指标可以补上下文，但必须标明来源、版本/API 边界、record/artifact 时间、进程身份和与当前 trace 的对应关系。需要机制背景时调用 `lookup_knowledge("observability-diagnostics")`。
 5. **缺失证据要进入结论**：trace 没有 heap graph、dmabuf、smaps、ApplicationExitInfo 或长窗口趋势时，只能输出候选和下一步采集建议。
 
 #### 内存场景关键 Stdlib 表
@@ -136,5 +156,6 @@ invoke_skill("memory_rss_high_watermark")
 2. **内存概览**：总内存、已用内存、可用内存、趋势（增长/稳定/下降）
 3. **内存类型拆分**：Java Heap / Native Heap / Graphics-dma-buf / RSS-PSS / mmap-SO / thread stack 中哪些有证据，哪些不可见
 4. **LMK/freezer/OOM 事件**（如有）：被杀/冻结/退出次数、受影响进程、OOM-adj 或 ApplicationExitInfo 来源；没有直接事件时不能命名
-5. **根因分析**：泄漏、分配突增、缓存、GC churn、图形/Native 占用、系统压力之间的证据边界和置信度
-6. **优化建议**：按内存类型和证据强度分类；把缺失证据转化为具体采集建议
+5. **诊断 API/剖析产物边界**（如用户提供或询问）：ApplicationExitInfo / ProfilingManager / ProfilingTrigger / heap dump / KOOM / APM 的 API level、reason/result file、record/artifact 时间、进程身份、与 trace 窗口的对齐关系，以及缺失证据
+6. **根因分析**：泄漏、分配突增、缓存、GC churn、图形/Native 占用、系统压力之间的证据边界和置信度
+7. **优化建议**：按内存类型和证据强度分类；把缺失证据转化为具体采集建议

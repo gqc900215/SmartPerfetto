@@ -380,7 +380,7 @@ Each TODO item can be marked done only when all applicable gates pass:
 
 ### Batch 7 - Observability And Diagnostic APIs
 
-- [ ] TODO-008: Versioned diagnostic API caveats
+- [x] TODO-008: Versioned diagnostic API caveats
   - Target files:
     - Shared strategy templates or knowledge templates, not TypeScript.
   - Wiki input:
@@ -394,21 +394,46 @@ Each TODO item can be marked done only when all applicable gates pass:
       thresholds.
   - Verification:
     - Prompt/loader tests and `validate:strategies`.
+  - Completed in Batch 7:
+    - Verified version-sensitive Android diagnostic API behavior against
+      current official docs on 2026-05-30 before encoding it:
+      `ApplicationExitInfo`, `ApplicationStartInfo`, `ProfilingManager`,
+      `ProfilingTrigger`, Android/Play Vitals, and App Performance Score.
+    - Added `knowledge-observability-diagnostics.template.md` so
+      `lookup_knowledge("observability-diagnostics")` has a concrete asset for
+      trace-direct evidence, diagnostic APIs, profiling artifacts, external
+      aggregates, A/B experiments, and missing-evidence wording.
+    - Added conditional final-report contracts and phase hints for startup,
+      memory, and ANR diagnostic API boundaries. These deliberately remain out
+      of `plan_template.mandatory_aspects` so ordinary startup/memory/ANR plans
+      are not hard-gated by external diagnostic surfaces.
+    - Added routing coverage for `ApplicationStartInfo`, `ApplicationExitInfo`,
+      `ProfilingManager`, and `ProfilingTrigger`, plus negative cases so
+      unrelated crash, power, network, scrolling, startup, and ANR questions
+      keep their stronger owning scenes.
+    - Added final-result quality gate and OpenAI continuation coverage so
+      reports that mention diagnostic APIs or external aggregates must separate
+      trace proof from API records, profiling artifacts, online aggregates, and
+      experiment context.
+    - Addressed independent post-diff review findings by removing diagnostic
+      API hard plan gates and by tightening ANR triggers so generic `system
+      trace` / `stack trace` wording does not require a diagnostic API section
+      unless the user mentions `ProfilingManager`, `ProfilingTrigger`,
+      `TRIGGER_TYPE_ANR`, `ApplicationExitInfo`, Vitals, or watchdog evidence.
 
 ## Current Next Step
 
-Batch 6 is implemented and passed independent review plus repository-level
-landing gates:
+All listed batches are implemented. Batch 7 passed independent review and the
+repository landing gates:
 
-- Focused Jest passed for strategy loading, real registry routing, final-result
-  contract behavior, OpenAI final-report continuation behavior, and Skill
-  evidence-boundary text.
-- `validate:strategies`, `validate:skills`, backend build, scene trace
-  regression, `npm run verify:pr`, and `git diff --check` passed.
-- Manual simplification review kept the scope to pure `network` scene
-  contracts, added a concrete `network-evidence` knowledge topic for phase
-  hints, and avoided creating a fake request-stage Skill. The `/simplify`
-  command was not available in this shell (`simplify not found`), so this was a
-  manual simplification pass.
+- Focused Jest passed for strategy loading, phase-hint matching, plan-template
+  regression, real registry routing, final-result contract behavior, and OpenAI
+  final-report continuation behavior.
+- `validate:strategies`, backend build, scene trace regression,
+  `npm run verify:pr`, and `git diff --check` passed.
+- Manual simplification review kept the scope to conditional
+  startup/memory/ANR diagnostic evidence contracts, a reusable knowledge topic,
+  and tests. The `/simplify` command was not available in this shell
+  (`simplify not found`), so this was a manual simplification pass.
 
-Next: commit/push Batch 6, then continue with Batch 7.
+Next: commit and push Batch 7 to `main`.

@@ -57,6 +57,14 @@ describe('classifyScene with real strategy frontmatter', () => {
     expect(classifyScene('Android vitals partial wakelock excessive 24h 怎么确认')).toBe('power');
   });
 
+  it('routes observability diagnostic API questions to the owning scene', () => {
+    expect(classifyScene('ApplicationStartInfo STARTUP_STATE start reason TTFD 怎么对齐')).toBe('startup');
+    expect(classifyScene('ApplicationExitInfo REASON_LOW_MEMORY OOM 怎么分析')).toBe('memory');
+    expect(classifyScene('ProfilingManager heap dump OOM 内存泄漏怎么验证')).toBe('memory');
+    expect(classifyScene('ProfilingTrigger ANR system trace 怎么和 direct blocker 对齐')).toBe('anr');
+    expect(classifyScene('ApplicationExitInfo ANR getAnrInfo 怎么确认')).toBe('anr');
+  });
+
   it('routes pure network request-stage and stack-policy questions to network', () => {
     expect(classifyScene('网络慢怎么分析')).toBe('network');
     expect(classifyScene('请求慢怎么分析')).toBe('network');
@@ -93,5 +101,14 @@ describe('classifyScene with real strategy frontmatter', () => {
     expect(classifyScene('ANR main thread waits on Cronet TLS recv')).toBe('anr');
     expect(classifyScene('点击响应慢 OkHttp response body decode')).toBe('interaction');
     expect(classifyScene('MediaCodec video decoder HTTP/3 QUIC buffering')).toBe('media');
+  });
+
+  it('does not let observability diagnostics steal unrelated or stronger scenes', () => {
+    expect(classifyScene('ApplicationExitInfo previous crash')).toBe('general');
+    expect(classifyScene('Play Vitals partial wakelock excessive 24h')).toBe('power');
+    expect(classifyScene('A/B network latency experiment')).toBe('network');
+    expect(classifyScene('App Performance Score render jank')).toBe('scrolling');
+    expect(classifyScene('ANR with ApplicationStartInfo previous launch')).toBe('anr');
+    expect(classifyScene('启动阶段 ApplicationExitInfo previous exit and ApplicationStartInfo')).toBe('startup');
   });
 });

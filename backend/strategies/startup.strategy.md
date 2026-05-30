@@ -34,9 +34,17 @@ keywords:
   - ttid
   - ttfd
   - first frame
+  - ApplicationStartInfo
+  - getHistoricalProcessStartReasons
+  - STARTUP_STATE
+  - START_TIMESTAMP
+  - START_REASON
+  - START_COMPONENT
 compound_patterns:
   - "打开.*(应用|app|软件)"
   - "打开.*(速度|时间|耗时)"
+  - "(App Performance Score|Android Vitals|Play Vitals|online APM|\\bAPM\\b|A/B|experiment).*(startup|launch|TTID|TTFD|启动|冷启动|温启动|热启动)"
+  - "(startup|launch|TTID|TTFD|启动|冷启动|温启动|热启动).*(App Performance Score|Android Vitals|Play Vitals|online APM|\\bAPM\\b|A/B|experiment)"
 
 final_report_contract:
   required_sections:
@@ -63,6 +71,17 @@ final_report_contract:
       pattern_groups:
         - ['App\s*层', '应用\s*层', 'App\s+layer']
         - ['系统\s*/\s*平台\s*层', '系统\s*层', '平台\s*层', 'ROM\s*层', 'System/Platform', 'platform\s+layer']
+    - id: startup_diagnostic_api_boundary
+      label: 启动诊断 API/外部指标边界
+      description: '当用户主动提到 ApplicationStartInfo、App Performance Score、Vitals、APM 或 A/B 时，区分当前 trace、诊断 API 记录、外部聚合/实验数据、版本/时钟边界和缺失证据。'
+      trigger_patterns:
+        - 'ApplicationStartInfo|getHistoricalProcessStartReasons|STARTUP_STATE|START_TIMESTAMP|START_REASON|START_COMPONENT'
+        - 'App Performance Score|Android Vitals|Play Vitals|Macrobenchmark|online APM|\bAPM\b|A/B|experiment'
+      pattern_groups:
+        - ['启动诊断 API/外部指标边界', 'startup diagnostic API', 'external metric boundary', 'ApplicationStartInfo', 'App Performance Score', 'Vitals', 'APM', 'A/B']
+        - ['diagnostic_api', 'external_aggregate', 'experiment', 'ApplicationStartInfo', 'getHistoricalProcessStartReasons', 'STARTUP_STATE', 'START_TIMESTAMP', 'START_REASON', 'START_COMPONENT', 'App Performance Score', 'Play Vitals', 'Android Vitals']
+        - ['API\s*3[56]', 'Android\s*1[56]', 'version', '版本', 'clock', 'timestamp', 'record state', 'in-progress', 'incomplete', 'device', 'sample', 'activation', 'A/A']
+        - ['trace window', 'current trace', 'TTID', 'TTFD', 'align', '对齐', 'missing', '缺失', 'confidence', '置信', '不能', '不可', 'not prove']
 
 phase_hints:
   - id: detail_breakdown
@@ -89,6 +108,11 @@ phase_hints:
     keywords: ['power', 'battery', 'wattson', '功耗', '耗电', '电池', '启动期能耗', '掉电']
     constraints: '用户关心启动功耗/耗电时，先检查 Trace 数据完整度中的 power_rails、battery_counters、cpu_freq_idle、gpu_work_period。数据可用才调用 wattson_app_startup_power；缺失时输出采集建议，禁止把空表解释为低功耗。'
     critical_tools: ['wattson_app_startup_power', 'battery_charge_timeline', 'android_dvfs_counter_stats']
+    critical: false
+  - id: startup_diagnostic_api_boundary
+    keywords: ['ApplicationStartInfo', 'getHistoricalProcessStartReasons', 'STARTUP_STATE', 'START_TIMESTAMP', 'START_REASON', 'START_COMPONENT', 'App Performance Score', 'Android Vitals', 'Play Vitals', 'APM', 'A/B', 'experiment']
+    constraints: '当计划或用户问题涉及启动诊断 API/外部指标时，必须把 Perfetto startup_analysis/TTID/TTFD、ApplicationStartInfo 记录、App Performance Score/Vitals/APM/A-B 外部数据分层；说明 API/Android 版本、时钟/时间戳对齐、record 是否 incomplete/in-progress、样本/设备/实验窗口，不能把外部分数或聚合直接当成本 trace 根因。'
+    critical_tools: ['startup_analysis', 'lookup_knowledge']
     critical: false
   - id: conclusion
     keywords: ['结论', 'conclusion', '输出', 'output', '报告', 'report', '总结']
@@ -587,6 +611,10 @@ TTID 和 TTFD 是两个不同的指标，必须区分：
 - **TTFD（Time To Full Display）**：完全显示时间，**需要**应用主动调用 `reportFullyDrawn()` 才有数据。对应 `time_to_full_display` 字段
 - **业务可用/可交互时间**：如果 App 有自定义业务 ready、首个可交互、首页数据加载完成或线上 APM TTFD 口径，必须标成外部/业务上下文。除非 trace 中有同名 marker 或可对齐的日志/快照，否则不能把它当作 `android_startup_time_to_display` 的直接证据。
 - **外部评分/Vitals 边界**：App Performance Score、Macrobenchmark、Android Vitals 或线上 APM 可以作为启动质量背景和下一步验证方向；当前 Perfetto trace 只能证明本次采集窗口内的启动链路，不能直接证明 28 天 Vitals 状态或评分项合规。
+- **ApplicationStartInfo / 外部观测边界**：当用户提供或询问 `ApplicationStartInfo`、App Performance Score、Vitals、APM 或 A/B 时，必须说明这是 `diagnostic_api`、`external_aggregate` 或 `experiment_or_ab` 证据。ApplicationStartInfo 记录需要核对 API/Android 版本、startup state、start type/reason/component、timestamp clock 和当前 Perfetto 窗口是否对齐；App Performance Score/Vitals/APM/A-B 需要核对设备、样本窗口、版本/渠道、activation 和 A/A sanity。需要机制背景时调用：
+  ```
+  lookup_knowledge("observability-diagnostics")
+  ```
 
 **分析边界（analysis window）说明**：
 - `android_startups` 表的 `dur`（= `end_ts - start_ts`）是框架层启动时长，通常表示框架认定的 startup completion，可近似首帧显示边界
