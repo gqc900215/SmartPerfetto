@@ -5,7 +5,7 @@
 # =============================================================================
 # 滚动响应延迟分析（原子 Skill）v2.0
 # =============================================================================
-# 使用 Perfetto stdlib android_input_events 测量滚动手势从输入到首帧渲染的响应延迟。
+# 使用 Perfetto stdlib android_input_events 测量滚动手势从 MOVE dispatch 到首帧开始的候选响应延迟。
 # 基于 slice 解析（sendMessage/receiveMessage），兼容大多数 atrace 配置。
 #
 # v2.0 变更：
@@ -13,7 +13,7 @@
 # - event_action 使用大写格式（MOVE, DOWN, UP）
 # - 时间戳基准统一为 dispatch_ts
 #
-# 注意：android_input_events 仅包含完成完整 IPC 周期的事件。
+# 注意：android_input_events 仅包含完成完整 IPC 周期的事件；该 Skill 输出不是 panel present 延迟。
 # 手势分割逻辑：连续 MOVE 事件间隔 > 500ms 视为新手势。
 
 name: scroll_response_latency
@@ -24,7 +24,7 @@ tier: B
 
 meta:
   display_name: "滚动响应延迟 (区间)"
-  description: "基于 android_input_events 测量滚动手势从输入事件到首帧渲染的响应延迟"
+  description: "基于 android_input_events 测量滚动手势从 MOVE dispatch 到首帧开始的候选响应延迟"
   icon: "swipe_right"
   tags: [scroll, response, latency, input, atomic]
   # ----- Phase F: pipeline-aware 接口标注 -----

@@ -14,7 +14,8 @@
 # - 新增 normalized_event_channel 窗口归一化
 #
 # 注意：android_input_events 仅包含完整走完 dispatch→receive→finish→finish_ack
-# 四阶段的事件。不完整/部分分发的事件不会出现在结果中。
+# 四阶段的事件。total_latency_dur 是 dispatch-to-ACK，不是不完整事件
+# 或真实上屏延迟；不完整/部分分发的事件不会出现在结果中。
 
 name: input_events_in_range
 version: "2.0"
@@ -24,7 +25,7 @@ tier: B
 
 meta:
   display_name: "输入事件列表 (区间)"
-  description: "提取区间内的输入事件（触摸、按键），包含完整 5 维延迟分解"
+  description: "提取区间内已完成 ACK 的输入事件（触摸、按键），包含 dispatch/handling/ACK 和可用的 frame 关联延迟"
   icon: "touch_app"
   tags: [input, events, touch, key, atomic]
 
@@ -83,11 +84,11 @@ display:
       type: duration
       format: duration_ms
     - name: total_latency_ms
-      label: "总延迟"
+      label: "总延迟(ACK)"
       type: duration
       format: duration_ms
     - name: e2e_latency_ms
-      label: "端到端延迟"
+      label: "Input→Frame 延迟"
       type: duration
       format: duration_ms
     - name: process_name

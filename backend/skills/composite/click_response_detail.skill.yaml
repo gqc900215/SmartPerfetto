@@ -48,7 +48,7 @@ inputs:
   - name: total_ms
     type: number
     required: true
-    description: "总延迟(ms)"
+    description: "dispatch-to-ACK 总延迟(ms)"
   - name: dispatch_ms
     type: number
     required: false
@@ -108,7 +108,7 @@ steps:
           label: "进程名"
           type: string
         - name: total_ms
-          label: "总延迟(ms)"
+          label: "总延迟(ACK)"
           type: duration
           format: duration_ms
         - name: dispatch_ms
@@ -257,7 +257,7 @@ steps:
           label: "事件通道"
           type: string
         - name: total_latency_ms
-          label: "总延迟(ms)"
+          label: "总延迟(ACK)"
           type: duration
           format: duration_ms
         - name: reader_ts

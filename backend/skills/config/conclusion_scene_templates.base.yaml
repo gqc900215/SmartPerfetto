@@ -42,7 +42,9 @@ scenes:
       - "- 结论要回答“点击后延迟主要卡在哪一段”。"
     output_requirement_lines:
       - "- 点击响应场景至少给出 1 个输入延迟指标（输入到 doFrame / 输入到首帧反馈）。"
-      - "- 资源问题要明确是 Input 分发等待、主线程重活、还是渲染链路放大。"
+      - "- 必须区分 dispatch、handling、ACK/FINISHED 和 input-to-present/FrameTimeline；`total_latency_dur` 只能当作 dispatch-to-ACK。"
+      - "- stale drop、focused/target window、InputChannel 和 wait queue/wq 只能在有 InputDispatcher、WindowManager、dumpsys/logcat 或窗口拓扑证据时定因；缺失时写成证据边界。"
+      - "- 资源问题要明确是 Input 分发等待、主线程重活、ACK 回写/调度，还是渲染/上屏链路放大。"
     next_step_line: "- “下一步”优先选慢点击样本，按 Input->App->Render->SF 链路逐段测量。"
     require_top_clusters: false
 

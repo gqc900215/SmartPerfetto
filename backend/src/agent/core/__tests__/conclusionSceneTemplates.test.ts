@@ -89,6 +89,23 @@ describe('conclusionSceneTemplates', () => {
     expect(hints.focusLines.join('\n')).toContain('Input');
   });
 
+  test('click-response template preserves ACK, focus/window, and present boundaries', () => {
+    const hints = buildConclusionScenePromptHints({
+      intent: createIntent({ primaryGoal: '分析点击响应和 InputDispatcher wait queue', aspects: ['interaction'] }),
+      findings: [],
+      deepReasonLabel: '为什么慢',
+    });
+
+    const requirements = hints.outputRequirementLines.join('\n');
+    expect(hints.sceneId).toBe('click_response');
+    expect(requirements).toContain('ACK/FINISHED');
+    expect(requirements).toContain('dispatch-to-ACK');
+    expect(requirements).toContain('stale drop');
+    expect(requirements).toContain('focused/target window');
+    expect(requirements).toContain('InputChannel');
+    expect(requirements).toContain('FrameTimeline');
+  });
+
   test('uses jank template and requires why-slow evidence', () => {
     const hints = buildConclusionScenePromptHints({
       intent: createIntent({ aspects: ['jank'], primaryGoal: '分析滑动卡顿' }),

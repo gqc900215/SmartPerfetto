@@ -18,8 +18,8 @@
 #   - dispatch_latency_dur: 系统分发延迟
 #   - handling_latency_dur: 应用处理延迟
 #   - ack_latency_dur: ACK 延迟
-#   - total_latency_dur: 端到端延迟
-#   - end_to_end_latency_dur: 输入到帧渲染延迟
+#   - total_latency_dur: dispatch-to-ACK 总延迟
+#   - end_to_end_latency_dur: 输入到关联帧延迟（需要 frame_id/FrameTimeline）
 #   - frame_id: 关联的帧 ID
 # - android_motion_events: 触摸事件详情
 # - android_key_events: 按键事件详情
@@ -32,7 +32,7 @@ tier: S
 
 meta:
   display_name: "点击响应分析"
-  description: "分析点击事件的响应延迟"
+  description: "分析已完成 ACK 的点击事件响应延迟，并在有帧关联时补充 input-to-frame 延迟"
   icon: "touch_app"
   tags: [click, latency, interaction, composite]
 
@@ -227,22 +227,22 @@ steps:
           format: duration_ms
           unit: ms
         - name: avg_total_ms
-          label: "平均总延迟"
+          label: "平均总延迟(ACK)"
           type: duration
           format: duration_ms
           unit: ms
         - name: max_total_ms
-          label: "最大总延迟"
+          label: "最大总延迟(ACK)"
           type: duration
           format: duration_ms
           unit: ms
         - name: avg_e2e_ms
-          label: "平均端到端延迟"
+          label: "平均 Input→Frame 延迟"
           type: duration
           format: duration_ms
           unit: ms
         - name: max_e2e_ms
-          label: "最大端到端延迟"
+          label: "最大 Input→Frame 延迟"
           type: duration
           format: duration_ms
           unit: ms
@@ -260,10 +260,10 @@ steps:
         ROUND(MAX(handling_latency_dur) / 1e6, 2) as max_handling_ms,
         -- ACK 延迟
         ROUND(AVG(ack_latency_dur) / 1e6, 2) as avg_ack_ms,
-        -- 总延迟
+        -- dispatch-to-ACK 总延迟
         ROUND(AVG(total_latency_dur) / 1e6, 2) as avg_total_ms,
         ROUND(MAX(total_latency_dur) / 1e6, 2) as max_total_ms,
-        -- 端到端延迟（到帧渲染）
+        -- 输入到关联帧延迟（需要 frame_id/FrameTimeline）
         ROUND(AVG(end_to_end_latency_dur) / 1e6, 2) as avg_e2e_ms,
         ROUND(MAX(end_to_end_latency_dur) / 1e6, 2) as max_e2e_ms,
         -- 评级
@@ -471,7 +471,7 @@ steps:
           format: duration_ms
           unit: ms
         - name: e2e_ms
-          label: "端到端延迟"
+          label: "Input→Frame 延迟"
           type: duration
           format: duration_ms
           unit: ms
@@ -708,7 +708,7 @@ steps:
           label: "事件动作"
           type: string
         - name: e2e_latency_ms
-          label: "端到端延迟"
+          label: "Input→Frame 延迟"
           type: duration
           format: duration_ms
           unit: ms
@@ -721,7 +721,7 @@ steps:
           format: duration_ms
           unit: ms
         - name: input_latency_ms
-          label: "输入延迟"
+          label: "Input ACK 延迟"
           type: duration
           format: duration_ms
           unit: ms
@@ -737,7 +737,7 @@ steps:
         -- 关联帧信息
         af.dur / 1e6 as frame_dur_ms,
         ie.total_latency_dur / 1e6 as input_latency_ms,
-        -- 输入到首帧的延迟
+        -- 输入到关联帧的延迟
         CASE
           WHEN ie.end_to_end_latency_dur / 1e6 > ${critical_event_threshold_ms|200} THEN 'critical'
           WHEN ie.end_to_end_latency_dur / 1e6 > ${slow_event_threshold_ms|100} THEN 'warning'

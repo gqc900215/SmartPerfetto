@@ -27,10 +27,70 @@ keywords:
   - response time
   - click delay
   - input delay
+  - InputDispatcher
+  - InputChannel
+  - FINISHED
+  - ACK
+  - wait queue
+  - wq
+  - stale event
+  - focused window
 compound_patterns:
   - "点击.*响应"
   - "响应.*时间"
   - "输入.*慢"
+  - "(?:InputDispatcher|InputChannel|wait queue|wq|FINISHED|ACK).*(?:latency|delay|blocked|stuck|慢|延迟|阻塞|积压)"
+  - "(?:focused window|target window|stale event|输入焦点|目标窗口|陈旧事件).*(?:input|touch|key|输入|触摸|按键)"
+
+final_report_contract:
+  required_sections:
+    - id: input_stage_breakdown
+      label: 输入阶段拆分
+      description: '把 dispatch、handling、ACK，以及 display/present 证据或缺口拆开，避免把 completed input event 总耗时写成上屏延迟。'
+      pattern_groups:
+        - ['输入阶段拆分', '阶段拆分', 'latency breakdown', 'dispatch', 'handling', 'ACK']
+        - ['dispatch', '分发', 'handling', '处理', 'ACK', 'FINISHED']
+        - ['present', 'FrameTimeline', '上屏', 'display', '首帧', '缺失', '不适用']
+    - id: ack_focus_window_boundary
+      label: ACK/焦点/窗口边界
+      description: '区分 iq/oq/wq、FINISHED ACK、stale drop、InputChannel、target/focused window；不能把这些直接等同 App 业务处理。'
+      pattern_groups:
+        - ['ACK/焦点/窗口', 'ACK', 'FINISHED', 'wait queue', '\bwq\b', 'stale', 'focused window', 'target window', 'InputChannel']
+        - ['区分', '边界', '不是', '不能', '不可', '缺失', 'separate', 'not', 'missing']
+        - ['iq', 'oq', '\bwq\b', 'FINISHED', 'ACK', 'stale', 'InputChannel', 'focused window', 'target window', '焦点', '窗口']
+    - id: input_confidence_boundary
+      label: 置信度与缺失证据
+      description: '说明 android.input completed-event、dumpsys/logcat/WMS/InputDispatcher 和 FrameTimeline 哪些存在，哪些只能作为补证方向。'
+      pattern_groups:
+        - ['置信', 'confidence', '证据不足', '缺失', '限制', '补证', '下一步', '采集']
+        - ['android\.input', 'completed', 'dumpsys', 'logcat', 'WindowManager', 'InputDispatcher', 'FrameTimeline', 'present', 'stale', 'focus']
+        - ['不能', '不可', '不等于', '候选', '需要', 'missing', 'not']
+
+phase_hints:
+  - id: input_ack_queue_boundary
+    keywords: ['InputDispatcher', 'InputChannel', 'FINISHED', 'ACK', 'wait queue', 'wq', 'iq', 'oq', 'input latency', '输入延迟']
+    constraints: '先区分 completed android.input 事件的 dispatch/handling/ACK 总耗时与未完成 FINISHED 的队列背压。wq 增长只能说明目标连接尚未 ACK；必须结合 App 主线程、InputDispatcher、dumpsys/logcat 或窗口证据，不能直接命名 Binder、App 代码或 InputDispatcher 根因。'
+    critical_tools: ['click_response_analysis', 'click_response_detail', 'input_events_in_range']
+    critical: true
+  - id: focus_window_stale_boundary
+    keywords: ['stale', 'focused window', 'target window', 'InputChannel', 'WindowInfosListener', 'no focused window', '焦点', '窗口', '陈旧事件']
+    constraints: 'stale drop、no-focused-window、InputChannel 创建/断连和 target-window 选择是不同对象。trace 只含 completed input events 时要写成证据缺口；需要 WindowManager/InputDispatcher logcat、dumpsys input 或窗口拓扑证据才能定因。'
+    critical_tools: ['input_events_in_range']
+    critical: false
+  - id: display_present_boundary
+    keywords: ['present', 'FrameTimeline', 'end_to_end_latency', 'frame_id', 'first frame', '首帧', '上屏', '端到端']
+    constraints: 'total_latency_dur 是 dispatch-to-ACK，不是 input-to-present。只有 end_to_end_latency_dur、frame_id/FrameTimeline、RenderThread/SF present 证据可用时，才能写上屏或可见反馈延迟；否则只报告 dispatch/ACK 或首帧候选。'
+    critical_tools: ['click_response_analysis', 'input_to_frame_latency', 'scroll_response_latency']
+    critical: false
+
+plan_template:
+  mandatory_aspects:
+    - id: input_latency_stage_breakdown
+      match_keywords: ['dispatch', 'handling', 'ACK', 'FINISHED', 'click_response_analysis', 'input_events_in_range', '输入延迟', '阶段拆分']
+      suggestion: '交互输入场景必须拆分 dispatch、handling、ACK，并说明 total_latency_dur 是否只覆盖 dispatch-to-ACK'
+    - id: focus_stale_channel_boundary
+      match_keywords: ['stale', 'focused window', 'target window', 'InputChannel', 'WindowInfosListener', 'wait queue', 'wq', 'dumpsys', 'logcat', '焦点', '窗口']
+      suggestion: '交互输入场景需要覆盖或明确缺失 stale、focus/window、InputChannel、iq/oq/wq 和 FINISHED ACK 证据边界'
 ---
 
 #### 点击/触摸响应分析（用户提到 点击、触摸、tap、click、input latency）
@@ -50,7 +110,7 @@ invoke_skill("click_response_analysis", { enable_per_event_detail: false })
   - `latency_distribution`：延迟分布直方图
 - **获取慢事件详细数据**：
   `fetch_artifact(artifactId, detail="rows", offset=0, limit=20)` 获取 `slow_events` 的完整列表
-- **如果没有慢事件**（slow_events 为空或总平均延迟 < 100ms）：报告响应良好并停止，无需深钻
+- **如果没有慢事件**（slow_events 为空或总平均延迟 < 100ms）：只能说明已完成 ACK 的 `android.input` 事件响应良好。若用户问的是 `wq`、stale、focus/window、InputChannel 或 no-focused-window，必须继续说明这些未完成/窗口类证据不在 completed-event 结果内，不能直接停止。
 
 **Phase 2 — 逐事件深钻（最多 5 个慢事件）：**
 
@@ -80,13 +140,22 @@ invoke_skill("click_response_detail", {
 
 **Phase 3 — 综合结论（基于根因决策树）：**
 
-### 第一步：瓶颈定位 — dispatch vs handling vs ack
+### 第一步：瓶颈定位 — dispatch vs handling vs ACK / display
 
 | 延迟阶段 | 含义 | 高占比（>50% 总延迟）时的根因方向 |
 |---------|------|-------------------------------|
-| dispatch_ms | 系统分发延迟（从内核到应用） | 系统侧问题：SurfaceFlinger 忙、system_server 负载高、输入管线积压 |
+| dispatch_ms | 系统分发延迟（InputDispatcher 到目标 App receive 之前） | 系统侧或目标唤醒问题：system_server/InputDispatcher 调度、InputChannel/socket、目标窗口选择或进程唤醒；需要 system_server/窗口/logcat/dumpsys 交叉验证 |
 | handling_ms | 应用处理延迟（应用收到事件到处理完成） | 应用侧问题：主线程阻塞、计算量大 → 用四象限分析定位 |
-| ack_ms | ACK 延迟（处理完成到帧上屏） | 渲染管线问题：帧绘制慢、SurfaceFlinger 合成延迟 |
+| ack_ms | FINISHED/ACK 延迟（处理回调完成到 finish/ack 写回及调度） | 可能是回调尾部、调度或 writeback 延迟；不是帧上屏证据 |
+| display/present | 输入到可见反馈（需要 `end_to_end_latency_dur`、`frame_id`/FrameTimeline、RenderThread/SF present） | 只有帧/上屏链路可用时才归因渲染或 SurfaceFlinger；缺失时写成数据缺口 |
+
+### 输入队列、焦点和窗口边界（只在有证据时定因）
+
+- `iq` / `oq:{window}` / `wq:{window}` 分别代表 inbound、outbound 和 wait queue。`wq` 持续增长只说明该连接还没有收到 `FINISHED`，不能单独证明 Binder、App 业务代码或 InputDispatcher 是根因。
+- stale event 是保护性丢弃旧事件，不是 App 已消费，也不等同 Input ANR。必须结合 stale/drop 日志、队列状态和前序窗口/线程时间线。
+- Touch 目标来自 touched-window hit testing，Key 目标来自 focused-window resolution。WindowInfosListener / WMS 窗口拓扑证据影响 target/focus 判断，但不说明 App handling 耗时。
+- InputChannel 创建失败、fd/内存耗尽或 dead channel 是窗口/通道生命周期问题，可能表现为窗口添加失败、缺焦点或 no-focused-window ANR；不要把它写成普通慢事件处理。
+- 短 `deliverInputEvent` 只说明 App-side receive/process slice 短，不能排除事件在主线程 MessageQueue 中等待或更早的 dispatcher/channel/focus 延迟。
 
 ### 第二步：当 handling 是瓶颈时 — 用四象限分析定位
 
@@ -130,12 +199,13 @@ execute_sql("WITH downs AS (SELECT read_time AS ts, LAG(read_time) OVER (ORDER B
 ### 输出结构必须遵循：
 
 1. **概览**：总事件数、慢事件数、平均/P90/P99 延迟、总体评级
-   - 如果无慢事件：报告"输入响应良好"并给出关键指标
+   - 如果无慢事件：报告"已完成 ACK 的输入事件响应良好"并说明它不覆盖未完成 ACK、stale drop、focus/window 或 InputChannel 证据
 
 2. **瓶颈分布**：
    - dispatch-heavy 事件 N 个（系统侧）
    - handling-heavy 事件 N 个（应用侧）
-   - ack-heavy 事件 N 个（渲染管线）
+   - ack-heavy 事件 N 个（FINISHED/ACK 回写或调度）
+   - input-to-present / FrameTimeline 是否可用；不可用时不要写上屏延迟
 
 3. **逐事件根因**（每个慢事件）：
    ```
@@ -147,3 +217,5 @@ execute_sql("WITH downs AS (SELECT read_time AS ts, LAG(read_time) OVER (ORDER B
    ```
 
 4. **优化建议**：按影响面排序，区分系统侧 vs 应用侧建议
+
+5. **证据边界**：列出 `android.input` completed-event、InputDispatcher/dumpsys/logcat、WindowManager/focus、FrameTimeline/present 哪些可用，哪些缺失；对 `wq`、stale、focus/window、InputChannel 只在证据闭环时定因。

@@ -221,7 +221,7 @@ Each TODO item can be marked done only when all applicable gates pass:
 
 ### Batch 3 - Input, Focus, And Interaction Latency
 
-- [ ] TODO-004: InputDispatcher and focus-window evidence
+- [x] TODO-004: InputDispatcher and focus-window evidence
   - Target files:
     - `backend/strategies/interaction.strategy.md`
     - `backend/strategies/scroll-response.strategy.md`
@@ -236,6 +236,24 @@ Each TODO item can be marked done only when all applicable gates pass:
     - Do not expand this until tests can validate prompt/routing behavior.
   - Verification:
     - Focused prompt/strategy tests plus trace regression.
+  - Completed in Batch 3:
+    - Added `interaction` final-report contract, phase hints, and plan template
+      for dispatch/handling/ACK/display stage separation plus stale,
+      InputChannel, `iq`/`oq`/`wq`, FINISHED, focus/window, and
+      FrameTimeline evidence boundaries.
+    - Added `scroll_response` final-report contract and phase hints for
+      response-latency scope, input target/queue evidence, and
+      FrameTimeline/present confidence.
+    - Narrowly strengthened `anr` wording so no-focused-window, stale drops,
+      InputChannel failures, and `wq`/FINISHED timeout are not conflated.
+    - Wired `click_response` conclusion metadata to the `interaction`
+      final-report contract and moved `interaction` out of the plan-template
+      opt-out set.
+    - Updated click/input/scroll-response Skill labels so dispatch-to-ACK is
+      not presented as true input-to-present latency.
+    - Added focused tests for strategy loader contracts, plan-template
+      migration, final-result quality gate behavior, conclusion template
+      output requirements, and real strategy-registry routing.
 
 ### Batch 4 - Graphics Memory, BufferQueue, Fence, And Refresh Policy
 
@@ -310,17 +328,15 @@ Each TODO item can be marked done only when all applicable gates pass:
 
 ## Current Next Step
 
-Batch 2 is implemented and validated through the pre-landing gates:
+Batch 3 is implemented and validated through the focused pre-landing gates:
 
-- Focused Jest passed for strategy loading, routing, real registry
-  integration, plan-template frontmatter, scene-template output, final result
-  contract behavior, and runtime strategy filename resolution.
-- `validate:strategies`, backend build, scene trace regression, and real
-  OpenAI startup E2E passed.
-- Read-only post-diff review passed after fixing the runtime strategy filename
-  resolution issue it found.
-- Repository-level `npm run verify:pr` passed, including root quality,
-  frontend prebuild, Rust checks/tests, backend core Jest, and all 6 scene
-  trace regression fixtures.
+- Focused Jest passed for strategy loading, real registry routing,
+  plan-template frontmatter, scene-template output, and final-result contract
+  behavior.
+- `validate:strategies`, `validate:skills`, backend build, and scene trace
+  regression passed.
+- Repository-level `npm run verify:pr` passed, including root quality gates,
+  frontend prebuild check, Rust checks, backend core tests, and trace regression.
+- Read-only post-diff review passed with no blocking findings.
 
-After this batch is committed and pushed to `main`, continue with Batch 3.
+After this batch is committed and pushed to `main`, continue with Batch 4.

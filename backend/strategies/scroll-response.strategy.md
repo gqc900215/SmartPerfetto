@@ -34,23 +34,63 @@ compound_patterns:
   - "首帧.*响应"
   - "滑动.*首帧"
 
+final_report_contract:
+  required_sections:
+    - id: scroll_response_scope
+      label: 响应延迟口径
+      description: '明确当前报告使用 dispatch-to-ACK、ACTION_MOVE-to-first-frame、还是 input-to-present 口径；不可混用。'
+      pattern_groups:
+        - ['响应延迟口径', '口径', 'latency scope', 'dispatch-to-ACK', 'ACTION_MOVE', 'first frame', 'input-to-present']
+        - ['dispatch-to-ACK', 'dispatch', 'ACK', 'ACTION_MOVE', 'first frame', '首帧', 'input-to-present', '上屏', 'present']
+        - ['区分', '边界', '不是', '不能', '不可', '缺失', 'separate', 'not', 'missing']
+    - id: scroll_input_target_boundary
+      label: 输入目标与队列边界
+      description: '说明 stale/focus/window/InputChannel/FINISHED/iq/oq/wq 是否有证据；不要把窗口或队列问题直接写成 App 滑动逻辑。'
+      pattern_groups:
+        - ['输入目标', '队列边界', 'target window', 'focused window', 'InputChannel', 'FINISHED', '\bwq\b', 'stale']
+        - ['stale', 'focused window', 'target window', 'InputChannel', 'FINISHED', 'ACK', 'iq', 'oq', '\bwq\b', '焦点', '窗口']
+        - ['证据', '缺失', '不适用', '不能', '边界', 'missing', 'not']
+    - id: frame_timeline_confidence
+      label: FrameTimeline/上屏置信度
+      description: '说明 frame_id、FrameTimeline、RenderThread、SF/present 链接是否可用；缺失时只能写首帧候选或 dispatch/ACK。'
+      pattern_groups:
+        - ['FrameTimeline', 'frame_id', 'present', '上屏', 'RenderThread', 'SurfaceFlinger', 'SF', '置信']
+        - ['可用', '缺失', 'linkage', '关联', '候选', '不适用', 'missing', 'confidence']
+
+phase_hints:
+  - id: scroll_latency_scope_boundary
+    keywords: ['scroll response', 'scroll latency', 'first frame', 'ACTION_MOVE', '首帧', '响应延迟', '滑动响应']
+    constraints: '先声明响应口径：dispatch-to-ACK、ACTION_MOVE 到首帧候选、还是 input-to-present。scroll_response_latency 的默认输出不能在缺少 FrameTimeline/present 链接时被写成硬端到端上屏。'
+    critical_tools: ['input_events_in_range', 'scroll_response_latency']
+    critical: true
+  - id: scroll_input_target_boundary
+    keywords: ['InputDispatcher', 'InputChannel', 'FINISHED', 'ACK', 'wait queue', 'wq', 'stale', 'focused window', 'target window']
+    constraints: '滑动响应异常可能来自输入队列、窗口目标、stale drop 或未完成 ACK。若没有 dumpsys/logcat/WindowManager/InputDispatcher 证据，只能作为缺口，不要把它归因成 App 滑动代码。'
+    critical_tools: ['input_events_in_range']
+    critical: false
+
 plan_template:
   mandatory_aspects:
     - id: input_event_detection
       match_keywords: ['input', 'gesture', 'motion', 'action_move', '输入', '手势', '触摸', 'input_events']
       suggestion: '滑动响应场景建议包含输入事件定位阶段 (input event detection)'
     - id: latency_breakdown
-      match_keywords: ['latency', 'response', 'delay', '延迟', '响应', '分解', 'breakdown', '首帧']
-      suggestion: '滑动响应场景建议包含端到端延迟分解阶段 (latency breakdown)'
+      match_keywords: ['latency', 'response', 'delay', '延迟', '响应', '分解', 'breakdown', '首帧', 'FrameTimeline', 'present']
+      suggestion: '滑动响应场景建议包含响应延迟口径和帧/上屏证据边界 (latency scope + frame linkage)'
+    - id: input_target_boundary
+      match_keywords: ['stale', 'focused window', 'target window', 'InputChannel', 'FINISHED', 'ACK', 'wait queue', 'wq', 'dumpsys', 'logcat']
+      suggestion: '滑动响应场景需要说明输入目标、stale、FINISHED ACK 和窗口/队列证据是否可用或缺失'
 ---
 
 #### 滑动响应速度分析（用户提到 滑动响应、滑动延迟、首帧延迟、scroll response、scroll latency）
 
 **核心区分：滑动响应速度 ≠ 滑动流畅性**
-- **响应速度**（本策略）：ACTION_MOVE → 第一帧画面变化的端到端延迟（target: <100ms）
+- **响应速度**（本策略）：ACTION_MOVE → 第一帧候选反馈，或在有 FrameTimeline/present 链接时的 input-to-present 延迟（target: <100ms）
 - **流畅性**（scrolling 策略）：持续滑动中的帧间稳定性 → 应使用 scrolling 策略
 
 如果用户问的是持续滑动中的卡顿/掉帧，应引导到 scrolling 策略，而非本策略。
+
+先声明本次使用的延迟口径：`total_latency_dur` 是 dispatch-to-ACK；`scroll_response_latency` 默认是 MOVE dispatch 到首帧开始的候选响应；只有 `end_to_end_latency_dur`、`frame_id`/FrameTimeline 或 RenderThread/SF present 可用时，才能写成 input-to-present / 上屏延迟。
 
 **Phase 1 — 输入事件定位：**
 
@@ -105,7 +145,7 @@ ORDER BY a.ts
 LIMIT 1
 ```
 
-计算端到端响应延迟：
+计算首帧候选响应延迟；只有 `present_ts` 可信且与输入事件/帧关联时，才写成上屏延迟：
 ```
 response_latency = frame_present_ts - gesture_start_ts
 ```
@@ -122,7 +162,7 @@ response_latency = frame_present_ts - gesture_start_ts
 
 **Phase 3 — 延迟分解：**
 
-将端到端延迟分解为以下各段，逐段定位瓶颈：
+将响应延迟按证据可见的段落分解，逐段定位瓶颈。缺少 present 或 frame linkage 时，不要补出不存在的上屏段：
 
 **段 1：Input dispatch latency（内核 → App 进程）**
 ```sql
@@ -193,7 +233,7 @@ LIMIT 20
 
 | 延迟段 | 正常范围 | 异常时根因方向 |
 |--------|---------|-------------|
-| Input dispatch | <10ms | system_server 负载高、input 线程被阻塞、输入管线积压 |
+| Input dispatch | <10ms | system_server 负载高、input 线程被阻塞、InputChannel/socket、target/focused window 或输入管线积压 |
 | Choreographer wait | 0-16ms（1 VSync） | 错过当前 VSync、要等下一个周期，可能主线程正忙 |
 | App frame build | <8ms | 主线程忙（layout 复杂、数据加载、同步 Binder 阻塞） |
 | Render thread | <4ms | GPU 负载高、draw commands 多、纹理上传 |
@@ -208,9 +248,14 @@ LIMIT 20
 | SF composition 超时 | `invoke_skill("surfaceflinger_analysis")` 查看合成策略和 layer 数 |
 | Input dispatch 超时 | 检查 system_server CPU 占用和 InputDispatcher 线程状态 |
 
+**输入目标与队列边界：**
+- `input_events_in_range` / `scroll_response_latency` 只覆盖完成 dispatch→receive→finish→ACK 的事件。没有结果不等于没有输入问题，可能是未完成 ACK、stale drop、focus/window 或 InputChannel 证据缺失。
+- `stale`、`focused window`、`target window`、`iq/oq/wq`、`FINISHED` 需要 dumpsys input、logcat、WindowManager/InputDispatcher 或窗口拓扑证据；缺失时写成数据缺口。
+- 如果只有 ACTION_MOVE 到首帧候选，不要把它推广为真实 panel present 或 HWC 输出。
+
 ### 输出结构必须遵循：
 
-1. **端到端响应延迟**：总延迟（ms）+ 评级
+1. **响应延迟口径**：说明使用 dispatch-to-ACK、ACTION_MOVE-to-first-frame，还是 input-to-present；给出总延迟（ms）+ 评级
    - 如有多个滑动手势，分别报告每个手势的首帧响应
 
 2. **延迟分解瀑布图**：
@@ -234,3 +279,5 @@ LIMIT 20
    - 如果仅首帧慢 → 可能是冷启动代价（首次布局/数据加载）
 
 5. **优化建议**：按瓶颈段给出可操作的建议
+
+6. **证据边界**：列出 FrameTimeline/present、InputDispatcher/dumpsys/logcat、WindowManager/focus、stale/FINISHED ACK 哪些可用，哪些缺失或不适用。

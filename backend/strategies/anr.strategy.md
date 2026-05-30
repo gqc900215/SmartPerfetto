@@ -77,6 +77,7 @@ plan_template:
 - `blocking`、`binder_calls`、`main_sync_binder`、`sched_delay` 这类包名级 artifact 只能作辅助上下文；逐 ANR 定因必须优先使用 `direct_blocker_candidates`、同窗口线程/slice 证据和事件级锚点。
 - Binder wait 需要对端/服务端证据；锁等待需要 owner/monitor chain；CPU/IO/内存压力需要与同一窗口的主线程、系统负载或日志闭环。
 - AnrManager/ActivityManager 的 “ANR in ...” 往往是 dump 或报告时刻，不必然等于真实触发起点；用它校验上下文，不替代 Perfetto ANR 时间窗。
+- 输入类 ANR 必须区分 `wq`/FINISHED timeout、stale drop、InputChannel 创建/断连、target/focused window 缺失和 App main-thread blocking。`wq`/queue age 是未 ACK 症状和计时基础，不是 Binder、App 业务代码或 InputDispatcher 根因本身；stale drop 也不是系统确认 ANR。
 
 #### ANR 场景关键 Stdlib 表
 
@@ -165,7 +166,7 @@ fetch_artifact(artifactId, detail="rows", offset=0, limit=50)
 | ANR 类型 | 重点检查 | 关键 artifact |
 |----------|---------|-------------|
 | INPUT_DISPATCHING_TIMEOUT | 主线程在做什么？是否有长 Binder 调用或锁等待阻塞了 input 处理 | `direct_blocker_candidates`、`lock_contention`、事件级 Logcat/InputDispatcher |
-| INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW | Activity/window 焦点链：resume 是否返回、relayout/draw 是否完成、WindowManager 是否给焦点 | `trigger_classification`、`logcat_event_context`、`render_thread`、WindowManager/InputDispatcher 日志 |
+| INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW | Activity/window 焦点链：resume 是否返回、relayout/draw 是否完成、WindowManager 是否给焦点；与 stale drop、InputChannel 失败和普通 `wq` FINISHED timeout 分开 | `trigger_classification`、`logcat_event_context`、`render_thread`、WindowManager/InputDispatcher 日志、dumpsys input/window |
 | BROADCAST_OF_INTENT | `onReceive()` 内是否有网络/IO/数据库操作在主线程执行 | `direct_blocker_candidates`、`main_slices`（查找 onReceive 相关 slice）、事件级 ActivityManager/Broadcast 日志 |
 | START_FOREGROUND_SERVICE / EXECUTING_SERVICE / FOREGROUND_SERVICE_TIMEOUT | Service 生命周期、前台服务启动和冷启动链路 | `direct_blocker_candidates`、`main_slices`、Service/ActivityManager 日志 |
 | JOB_SERVICE_START / STOP / BIND | JobService 回调或绑定链路，不要简化成普通 Service | `direct_blocker_candidates`、`logcat_event_context`、事件级 JobScheduler 日志 |
@@ -238,5 +239,6 @@ fetch_artifact(artifactId, detail="rows", offset=0, limit=50)
 - 忽略逐 ANR `app_freeze_check`（应用完全冻结 vs 部分响应是重要区分）
 - 不交叉检查 CPU/内存/IO 系统上下文就下结论
 - 把 `root_cause_pattern_hints`、AnrManager 文本或 `nativePollOnce` 当成最终根因
+- 把 stale drop、no-focused-window、InputChannel 失败、`wq`/FINISHED timeout 混成同一种 input ANR 根因
 - 多 ANR 场景中混用不同 `error_id` 的日志、Binder、锁竞争和调度证据
 - 对 Binder/锁/CPU/IO/内存压力只给单点证据，不说明还缺的 peer/owner/system/context 证据

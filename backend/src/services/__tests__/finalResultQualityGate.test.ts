@@ -647,6 +647,149 @@ describe('final result quality gate', () => {
     })).toBeUndefined();
   });
 
+  it('flags interaction reports that omit ACK, focus/window, and display boundaries', () => {
+    const shortInteractionReport = [
+      '# 点击响应分析报告',
+      '',
+      '## 综合结论',
+      '',
+      '点击响应慢，主要是输入延迟 180ms，需要优化主线程。',
+    ].join('\n');
+
+    const issue = assessFinalResultQuality({
+      result: result({
+        conclusion: shortInteractionReport,
+        findings: [{
+          severity: 'warning',
+          title: 'input latency',
+          description: 'total_latency_dur=180ms',
+          evidence: ['android.input total_latency_dur=180ms'],
+        } as any],
+      }),
+      query: '分析点击响应慢',
+      sceneType: 'interaction',
+    });
+
+    expect(issue?.code).toBe('scene_contract_incomplete');
+    expect(issue?.message).toContain('输入阶段拆分');
+    expect(issue?.message).toContain('ACK/焦点/窗口边界');
+    expect(issue?.message).toContain('置信度与缺失证据');
+  });
+
+  it('accepts interaction reports that separate input stages, queues, and present evidence', () => {
+    const richInteractionReport = [
+      '# 点击响应分析报告',
+      '',
+      '## 综合结论',
+      '',
+      '已完成 ACK 的点击事件平均 dispatch-to-ACK 为 180ms，当前不能直接写成上屏延迟。',
+      '',
+      '## 输入阶段拆分',
+      '',
+      '- dispatch=42ms，handling=96ms，ACK/FINISHED=42ms；FrameTimeline present 缺失，因此 display/上屏不适用。',
+      '',
+      '## ACK/焦点/窗口边界',
+      '',
+      '- 区分 iq/oq/wq、FINISHED ACK、stale、InputChannel、focused window 和 target window；当前 wait queue/wq 与 stale 日志缺失，不能把它们写成 App 业务根因。',
+      '',
+      '## 置信度与缺失证据',
+      '',
+      '- android.input completed-event 可用；dumpsys/logcat、WindowManager/InputDispatcher focus 和 FrameTimeline present 缺失。需要补证后才能提升置信度。',
+    ].join('\n');
+
+    expect(assessFinalResultQuality({
+      result: result({ conclusion: richInteractionReport }),
+      query: '分析点击响应慢',
+      sceneType: 'interaction',
+    })).toBeUndefined();
+  });
+
+  it('uses click_response conclusion metadata as the interaction final-report contract', () => {
+    const issue = assessFinalResultQuality({
+      result: result({
+        conclusion: [
+          '# 点击响应分析报告',
+          '',
+          '## 综合结论',
+          '',
+          '点击响应慢，total_latency_dur=180ms。',
+        ].join('\n'),
+        findings: [{ severity: 'warning', title: 'input latency', description: '180ms' } as any],
+        conclusionContract: {
+          schemaVersion: 'conclusion_contract_v1',
+          mode: 'initial_report',
+          conclusions: [],
+          clusters: [],
+          evidenceChain: [],
+          uncertainties: [],
+          nextSteps: [],
+          metadata: { sceneId: 'click_response' },
+        },
+      }),
+      query: '分析这个 trace',
+    });
+
+    expect(issue?.code).toBe('scene_contract_incomplete');
+    expect(issue?.message).toContain('interaction 场景 Final Report Contract');
+  });
+
+  it('flags scroll response reports that omit latency scope and frame-linkage confidence', () => {
+    const shortScrollResponseReport = [
+      '# 滑动响应分析报告',
+      '',
+      '## 综合结论',
+      '',
+      '滑动从 ACTION_MOVE 到首帧 120ms，端到端上屏慢，需要优化。',
+    ].join('\n');
+
+    const issue = assessFinalResultQuality({
+      result: result({
+        conclusion: shortScrollResponseReport,
+        findings: [{
+          severity: 'warning',
+          title: 'scroll response latency',
+          description: 'response_latency_ms=120',
+          evidence: ['scroll_response_latency response_latency_ms=120'],
+        } as any],
+      }),
+      query: '分析滑动响应慢',
+      sceneType: 'scroll_response',
+    });
+
+    expect(issue?.code).toBe('scene_contract_incomplete');
+    expect(issue?.message).toContain('响应延迟口径');
+    expect(issue?.message).toContain('输入目标与队列边界');
+    expect(issue?.message).toContain('FrameTimeline/上屏置信度');
+  });
+
+  it('accepts scroll response reports that state scope, queue boundaries, and frame confidence', () => {
+    const richScrollResponseReport = [
+      '# 滑动响应分析报告',
+      '',
+      '## 综合结论',
+      '',
+      '本次只证明 ACTION_MOVE-to-first-frame 候选响应为 120ms，不能直接写成 panel present。',
+      '',
+      '## 响应延迟口径',
+      '',
+      '- 已区分 dispatch-to-ACK、ACTION_MOVE 到 first frame/首帧候选、input-to-present；present 缺失，不能把候选首帧当真实上屏。',
+      '',
+      '## 输入目标与队列边界',
+      '',
+      '- target window/focused window、InputChannel、FINISHED ACK、iq/oq/wq 和 stale 均需要额外证据；当前缺失 dumpsys/logcat，因此不能定因窗口队列。',
+      '',
+      '## FrameTimeline/上屏置信度',
+      '',
+      '- FrameTimeline frame_id 关联缺失，RenderThread/SF present 链接缺失；当前只可作为 first-frame 候选，置信度中等。',
+    ].join('\n');
+
+    expect(assessFinalResultQuality({
+      result: result({ conclusion: richScrollResponseReport }),
+      query: '分析滑动响应慢',
+      sceneType: 'scroll_response',
+    })).toBeUndefined();
+  });
+
   it('does not override runtime results that are already marked partial', () => {
     expect(assessFinalResultQuality({
       result: result({

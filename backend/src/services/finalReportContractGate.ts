@@ -36,6 +36,9 @@ function normalizeSceneType(value: string | undefined): SceneType | undefined {
   const normalized = String(value || '').trim().toLowerCase();
   if (!normalized) return undefined;
   if (normalized === 'jank' || normalized === 'scroll' || normalized === 'scrolling') return 'scrolling';
+  if (normalized === 'click_response' || normalized === 'tap_response' || normalized === 'touch_response') {
+    return 'interaction';
+  }
   if (normalized === 'cold_start' || normalized === 'warm_start' || normalized === 'hot_start') return 'startup';
   return normalized;
 }

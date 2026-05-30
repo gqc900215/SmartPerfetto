@@ -34,7 +34,15 @@ describe('plan_template frontmatter pipeline', () => {
 
   it('returns null for scenes that have no frontmatter plan_template (e.g. general)', () => {
     expect(getPlanTemplate('general')).toBeNull();
-    expect(getPlanTemplate('interaction')).toBeNull();
+  });
+
+  it('loads interaction plan_template from strategy.md frontmatter', () => {
+    const tpl = getPlanTemplate('interaction');
+    expect(tpl).not.toBeNull();
+    expect(tpl!.mandatoryAspects.map(aspect => aspect.id)).toEqual(expect.arrayContaining([
+      'input_latency_stage_breakdown',
+      'focus_stale_channel_boundary',
+    ]));
   });
 
   it('returns null for unknown scenes', () => {
@@ -46,7 +54,7 @@ describe('plan_template frontmatter pipeline', () => {
     // aspect; scenes that still rely on the legacy map have `id` undefined.
     const migrated = [
       'scrolling', 'startup', 'anr', 'teaching', 'scroll_response',
-      'pipeline', 'memory', 'io', 'game', 'overview', 'touch_tracking',
+      'pipeline', 'memory', 'io', 'interaction', 'game', 'overview', 'touch_tracking',
     ];
     for (const scene of migrated) {
       const tpl = getScenePlanTemplate(scene);
@@ -60,7 +68,6 @@ describe('plan_template frontmatter pipeline', () => {
 
   it('does not break for opt-out scenes when a plan is submitted against them', () => {
     expect(getScenePlanTemplate('general')).toBeUndefined();
-    expect(getScenePlanTemplate('interaction')).toBeUndefined();
   });
 
   it('frontmatter-sourced templates contain the same matchKeywords as the legacy map (migration parity)', () => {

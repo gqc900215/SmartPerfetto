@@ -89,6 +89,18 @@ describe('strategyLoader tolerates leading SPDX HTML comments', () => {
       'app_api_boundary',
       'io_confidence_boundary',
     ]));
+
+    expect(getFinalReportContract('interaction')?.requiredSections.map(section => section.id)).toEqual(expect.arrayContaining([
+      'input_stage_breakdown',
+      'ack_focus_window_boundary',
+      'input_confidence_boundary',
+    ]));
+
+    expect(getFinalReportContract('scroll_response')?.requiredSections.map(section => section.id)).toEqual(expect.arrayContaining([
+      'scroll_response_scope',
+      'scroll_input_target_boundary',
+      'frame_timeline_confidence',
+    ]));
   });
 
   it('keeps contract-only smart strategy out of normal scene registration', () => {
@@ -127,6 +139,16 @@ describe('strategyLoader tolerates leading SPDX HTML comments', () => {
       'sqlite_sharedprefs_provider_boundary',
     ]));
     expect(hints.find(hint => hint.id === 'io_evidence_ladder')?.criticalTools).toContain('block_io_analysis');
+  });
+
+  it('loads interaction phase_hints for input ACK and focus/window boundaries', () => {
+    const hints = getPhaseHints('interaction');
+    expect(hints.map(hint => hint.id)).toEqual(expect.arrayContaining([
+      'input_ack_queue_boundary',
+      'focus_window_stale_boundary',
+      'display_present_boundary',
+    ]));
+    expect(hints.find(hint => hint.id === 'input_ack_queue_boundary')?.criticalTools).toContain('click_response_analysis');
   });
 
   it('keeps the AgentV3 output template wired for machine-parseable claim provenance', () => {

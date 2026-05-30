@@ -116,7 +116,6 @@ const SCENE_PLAN_TEMPLATES: Partial<Record<SceneType, ScenePlanTemplate>> = {
  */
 export const SCENES_WITHOUT_PLAN_TEMPLATE: ReadonlySet<SceneType> = new Set([
   'general',
-  'interaction',
 ]);
 
 /**

@@ -32,4 +32,13 @@ describe('classifyScene with real strategy frontmatter', () => {
     expect(classifyScene('MediaCodec video decode stutter')).toBe('media');
     expect(classifyScene('network traffic is high')).toBe('network');
   });
+
+  it('routes pure input-dispatch queue questions to interaction', () => {
+    expect(classifyScene('InputDispatcher wait queue wq 没有收到 FINISHED ACK，输入延迟很高')).toBe('interaction');
+  });
+
+  it('keeps no-focused-window ANR on the ANR strategy', () => {
+    expect(classifyScene('INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW ANR')).toBe('anr');
+    expect(classifyScene('no focused window ANR during launch')).toBe('anr');
+  });
 });
