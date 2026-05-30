@@ -115,12 +115,13 @@ function buildSceneStrategySection(sceneType: SceneType | undefined): string {
   const contract = getFinalReportContract(sceneType || 'general');
   const contractSection = contract && contract.requiredSections.length > 0
     ? '\n\n### Final Report Contract（最终报告必检项）\n\n' +
-      '最终报告必须满足以下场景交付结构；这些要求会在运行结束时由系统质量闸门统一校验：\n' +
+      '最终报告必须满足以下场景交付结构；标注条件触发的项目只在用户问题涉及对应证据面时校验：\n' +
       contract.requiredSections
         .filter(requirement => requirement.required !== false)
         .map((requirement, index) => {
           const description = requirement.description ? `：${requirement.description}` : '';
-          return `${index + 1}. ${requirement.label}${description}`;
+          const triggerNote = requirement.triggerPatterns.length > 0 ? '（条件触发）' : '';
+          return `${index + 1}. ${requirement.label}${triggerNote}${description}`;
         })
         .join('\n')
     : '';

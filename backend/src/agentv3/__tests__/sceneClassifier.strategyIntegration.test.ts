@@ -41,4 +41,24 @@ describe('classifyScene with real strategy frontmatter', () => {
     expect(classifyScene('INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW ANR')).toBe('anr');
     expect(classifyScene('no focused window ANR during launch')).toBe('anr');
   });
+
+  it('routes pure BufferQueue, fence, and refresh-policy questions to pipeline', () => {
+    expect(classifyScene('BufferQueue release fence 和 dequeueBuffer backpressure 怎么看')).toBe('pipeline');
+    expect(classifyScene('SurfaceFlinger present fence latency 怎么看')).toBe('pipeline');
+    expect(classifyScene('刷新率 ARR VRR 改变帧预算的 policy 怎么分析')).toBe('pipeline');
+    expect(classifyScene('GraphicBuffer 和 BufferQueue 槽位是不是同一个证据')).toBe('pipeline');
+  });
+
+  it('keeps explicit frame-drop phrasing on scrolling without broad frame keyword matches', () => {
+    expect(classifyScene('analyze frame drops in this trace')).toBe('scrolling');
+    expect(classifyScene('frame drop in this trace')).toBe('scrolling');
+  });
+
+  it('keeps scene-specific BufferQueue and graphics-memory queries on their stronger scenes', () => {
+    expect(classifyScene('滑动卡顿里 BufferQueue release fence 等待')).toBe('scrolling');
+    expect(classifyScene('启动阶段 queueBuffer release fence 等待')).toBe('startup');
+    expect(classifyScene('dmabuf graphics memory leak OOM')).toBe('memory');
+    expect(classifyScene('game fence wait GPU frame pacing')).toBe('game');
+    expect(classifyScene('点击响应慢 present latency')).toBe('interaction');
+  });
 });

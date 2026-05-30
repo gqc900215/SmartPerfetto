@@ -913,7 +913,8 @@ function renderFinalReportContractGuidance(
     return requiredSections
       .map((section, idx) => {
         const description = section.description ? `: ${section.description}` : '';
-        return `   ${idx + 1}. ${section.label}${description}`;
+        const triggerNote = section.triggerPatterns.length > 0 ? ' (conditional when the user query touches this evidence surface)' : '';
+        return `   ${idx + 1}. ${section.label}${triggerNote}${description}`;
       })
       .join('\n');
   }

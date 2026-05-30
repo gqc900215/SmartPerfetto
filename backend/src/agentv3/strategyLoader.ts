@@ -59,6 +59,12 @@ export interface FinalReportContractRequirement {
   id: string;
   label: string;
   description?: string;
+  /**
+   * Optional JavaScript regex patterns that make a required section conditional.
+   * When present, the section is enforced only if the user's query mentions
+   * the evidence surface described by these triggers.
+   */
+  triggerPatterns: string[];
   patterns: string[];
   /** AND-of-OR groups. Each inner group must match at least one pattern. */
   patternGroups: string[][];
@@ -159,6 +165,7 @@ function parseStrategyFile(filePath: string): StrategyDefinition | null {
       requiredSections: requiredSections
         .map(section => {
           const patterns = (section.patterns as string[]) || [];
+          const triggerPatterns = (section.trigger_patterns as string[]) || [];
           const patternGroups = Array.isArray(section.pattern_groups)
             ? (section.pattern_groups as unknown[])
               .filter(group => Array.isArray(group))
@@ -169,6 +176,7 @@ function parseStrategyFile(filePath: string): StrategyDefinition | null {
             id: (section.id as string) || '',
             label: (section.label as string) || (section.id as string) || '',
             description: (section.description as string | undefined) || undefined,
+            triggerPatterns,
             patterns,
             patternGroups,
             required: (section.required as boolean | undefined) ?? true,

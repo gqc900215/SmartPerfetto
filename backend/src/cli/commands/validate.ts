@@ -860,6 +860,9 @@ function validateFinalReportContractFrontmatter(frontmatter: Record<string, unkn
     if (record.required !== undefined && typeof record.required !== 'boolean') {
       errors.push(`${prefix}.required must be a boolean when present`);
     }
+    if (record.trigger_patterns !== undefined && !Array.isArray(record.trigger_patterns)) {
+      errors.push(`${prefix}.trigger_patterns must be an array when present`);
+    }
 
     const patterns = record.patterns;
     const patternGroups = record.pattern_groups;
@@ -877,6 +880,12 @@ function validateFinalReportContractFrontmatter(frontmatter: Record<string, unkn
           validateRegexPattern(pattern, errors, `${prefix}.patterns[${patternIndex}]`);
         });
       }
+    }
+
+    if (Array.isArray(record.trigger_patterns)) {
+      record.trigger_patterns.forEach((pattern, patternIndex) => {
+        validateRegexPattern(pattern, errors, `${prefix}.trigger_patterns[${patternIndex}]`);
+      });
     }
 
     if (patternGroups !== undefined) {

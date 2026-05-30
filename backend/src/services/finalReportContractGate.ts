@@ -32,6 +32,11 @@ function requirementSatisfied(text: string, requirement: FinalReportContractRequ
   return requirement.patterns.some(pattern => patternMatches(text, pattern));
 }
 
+function requirementApplies(input: FinalReportContractCompletenessInput, requirement: FinalReportContractRequirement): boolean {
+  if (requirement.triggerPatterns.length === 0) return true;
+  return requirement.triggerPatterns.some(pattern => patternMatches(input.query || '', pattern));
+}
+
 function normalizeSceneType(value: string | undefined): SceneType | undefined {
   const normalized = String(value || '').trim().toLowerCase();
   if (!normalized) return undefined;
@@ -55,6 +60,7 @@ export function assessFinalReportContractCompleteness(
 
   const missingLabels = contract.requiredSections
     .filter(requirement => requirement.required !== false)
+    .filter(requirement => requirementApplies(input, requirement))
     .filter(requirement => !requirementSatisfied(input.conclusion, requirement))
     .map(requirement => requirement.label || requirement.id);
 

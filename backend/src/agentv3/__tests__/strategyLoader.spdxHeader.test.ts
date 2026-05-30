@@ -101,6 +101,23 @@ describe('strategyLoader tolerates leading SPDX HTML comments', () => {
       'scroll_input_target_boundary',
       'frame_timeline_confidence',
     ]));
+
+    const pipelineContract = getFinalReportContract('pipeline');
+    expect(pipelineContract?.requiredSections.map(section => section.id)).toEqual(expect.arrayContaining([
+      'rendering_stage_split',
+      'buffer_fence_boundary',
+      'graphics_memory_policy_boundary',
+    ]));
+    expect(pipelineContract?.requiredSections.find(section =>
+      section.id === 'graphics_memory_policy_boundary',
+    )?.triggerPatterns).toEqual(expect.arrayContaining([
+      'GraphicBuffer|dma[-_ ]?buf|graphics\\s+memory|图形内存|GPU memory',
+    ]));
+    expect(pipelineContract?.requiredSections.find(section =>
+      section.id === 'buffer_fence_boundary',
+    )?.triggerPatterns).toEqual(expect.arrayContaining([
+      'BufferQueue|BLAST|queueBuffer|dequeueBuffer',
+    ]));
   });
 
   it('keeps contract-only smart strategy out of normal scene registration', () => {
@@ -149,6 +166,20 @@ describe('strategyLoader tolerates leading SPDX HTML comments', () => {
       'display_present_boundary',
     ]));
     expect(hints.find(hint => hint.id === 'input_ack_queue_boundary')?.criticalTools).toContain('click_response_analysis');
+  });
+
+  it('loads rendering pipeline phase_hints for BufferQueue, fence, and refresh policy boundaries', () => {
+    const pipelineHints = getPhaseHints('pipeline');
+    expect(pipelineHints.map(hint => hint.id)).toEqual(expect.arrayContaining([
+      'buffer_fence_lifecycle',
+      'refresh_policy_boundary',
+      'graphics_memory_boundary',
+    ]));
+    expect(pipelineHints.find(hint => hint.id === 'buffer_fence_lifecycle')?.criticalTools).toContain('fence_wait_decomposition');
+
+    const scrollingHints = getPhaseHints('scrolling');
+    expect(scrollingHints.map(hint => hint.id)).toContain('display_pipeline_boundary');
+    expect(scrollingHints.find(hint => hint.id === 'display_pipeline_boundary')?.criticalTools).toContain('present_fence_timing');
   });
 
   it('keeps the AgentV3 output template wired for machine-parseable claim provenance', () => {

@@ -10,7 +10,6 @@ required_capabilities:
   - cpu_scheduling
 optional_capabilities:
   - binder_ipc
-  - surfaceflinger
   - gpu
   - thermal_throttling
   - input_latency
@@ -27,13 +26,10 @@ keywords:
   - jank
   - scroll
   - fps
-  - 帧
-  - frame
   - 列表
   - 流畅
   - fling
   - swipe
-  - 刷新
   - 滚动
   - recycler
   - recyclerview
@@ -46,10 +42,12 @@ keywords:
   - 快滑
   - 慢滑
   - stuttering
+  - frame drop
+  - frame drops
   - dropped frame
+  - dropped frames
   - janky
   - 不流畅
-  - surfaceflinger
   - impeller
   - textureview
   - react native
@@ -109,6 +107,11 @@ phase_hints:
     keywords: ['TextureView', 'SurfaceTexture', 'WebView', 'DrawFunctor', 'React Native', 'RN', 'Fabric', 'JSI', 'GLSurfaceView', 'NativeActivity', 'OpenGL', 'Compose', 'Flutter', 'mixed', '混合', '架构', '生产端']
     constraints: 'detect_architecture 命中 TextureView/WebView/RN/GL/Compose/Flutter 或 ANDROID_VIEW_MIXED 时，必须补充对应架构专属 skill。混合出图不能只按 primary pipeline 单路分析，必须分别看 HWUI host 链路和嵌入/独立 producer 链路，再按依赖关系合并。缺专属 trace 信号时标注“不支持该架构证据”，不能只用 FrameTimeline 断言无卡顿。'
     critical_tools: ['scrolling_analysis', 'flutter_scrolling_analysis', 'textureview_producer_frame_timing', 'webview_drawfunctor_jank_chain', 'rn_bridge_to_frame_jank', 'rn_fabric_render_jank', 'gl_standalone_swap_jank', 'compose_recomposition_hotspot', 'surfaceflinger_analysis']
+    critical: false
+  - id: display_pipeline_boundary
+    keywords: ['BufferQueue', 'BLAST', 'dequeueBuffer', 'queueBuffer', 'SurfaceFlinger', 'HWC', 'acquire fence', 'present fence', 'release fence', 'refresh rate', '刷新率', 'ARR', 'VRR', 'FrameTimeline', 'sf_backpressure', 'gpu_fence_wait']
+    constraints: '当掉帧证据涉及 BufferQueue、Fence、SF/HWC、Buffer Stuffing、隐形掉帧或刷新率变化时，必须把 App/RenderThread、BufferQueue queue/dequeue/latch、SF commit/composite/present、HWC/display 与 acquire/present/release fence 拆开。queueBuffer 快不等于已上屏；dequeueBuffer 等待更接近 release fence/backpressure；刷新率/ARR/VRR 要用实际 VSync 周期，不默认 16.6ms。'
+    critical_tools: ['surfaceflinger_analysis', 'buffer_transaction_lifecycle', 'fence_wait_decomposition', 'present_fence_timing', 'vsync_config']
     critical: false
   - id: conclusion
     keywords: ['结论', 'conclusion', '输出', 'output', '报告', 'report', '总结']
@@ -237,10 +240,18 @@ invoke_skill("scrolling_analysis", { start_ts: "<trace_start>", end_ts: "<trace_
 | **多帧 `reason_code = thermal_throttling` 或 `cpu_max_limited`** | 调用 `invoke_skill("thermal_throttling")`，或 `lookup_knowledge("thermal-throttling")` | 温度曲线？限频策略？是持续降频还是间歇性？thermal 还是 policy governor？ |
 | **多帧 `reason_code = gc_pressure_cascade`** | 查询 `android_garbage_collection_events` 全程分布 | GC 频率趋势？是否有内存泄漏迹象？哪种 GC 类型为主？ |
 | **多帧 `reason_code = render_thread_heavy`** | 对最严重帧调用 `invoke_skill("jank_frame_detail")` 查看 RT top slices | uploadBitmap？shader 初始化？syncFrameState？drawFrame 内部哪个阶段慢？ |
-| **多帧 `reason_code = gpu_fence_wait` 或 `shader_compile`** | 调用 `invoke_skill("gpu_analysis")` 或 `execute_sql` 查询 GPU 频率/利用率 | GPU 频率被限？shader 复杂度？GPU 负载过高？ |
+| **多帧 `reason_code = gpu_fence_wait` 或 `shader_compile`** | 调用 `invoke_skill("gpu_analysis")`；若证据指向 BufferQueue/Fence，再补 `fence_wait_decomposition` / `present_fence_timing` / `vsync_config` | GPU 频率被限？shader 复杂度？GPU 负载过高？还是 acquire/present/release fence 或刷新率预算导致？ |
 | **多帧 `reason_code = binder_sync_blocking` / `binder_timeout` / `lock_binder_wait` / `blocking_io` / `main_thread_file_io`** | 对最严重帧调用 `invoke_skill("frame_blocking_calls", {process_name, start_ts, end_ts})` | 帧窗口里真正重叠的是 Binder、GC、锁竞争、futex 还是文件 IO？重叠多久？ |
 | **多帧 `reason_code = input_handling_slow`** | 先读取 `input_events_json` / `input_slices_json`，再对最严重帧调用 `frame_blocking_calls` 或 `jank_frame_detail` | 是 `deliverInputEvent` / `dispatchTouchEvent` / `onTouchEvent` 本身慢，还是 input 回调里同步 Binder/IO/锁/RecyclerView inflate/bind？ |
 | **VRR 设备（VSync 周期 ≠ 16.67ms）** | 注意 1.5x VSync 阈值需基于实际 VSync 周期 | 如 120Hz = 8.33ms, 1.5x = 12.5ms |
+
+**Display pipeline 边界（当证据命中 SF/BufferQueue/Fence/刷新率时必须写清）：**
+- `queueBuffer()` 只证明 producer 已提交 buffer；它不证明 SurfaceFlinger 已 acquire/latch，也不证明 HWC/panel 已 present。
+- `dequeueBuffer` 长等通常更接近 release fence / BufferQueue backpressure / triple-buffer 槽位复用问题；不要把它直接写成 App 主线程代码慢。
+- Fence 要拆成 acquire / present / release：acquire 影响 SF latch，present 影响用户可见上屏，release 影响 producer 复用上一帧 buffer。
+- HWC 不是 BufferQueue consumer；SurfaceFlinger 消费 buffer 后，再通过 HWC validate/accept/present 或 RenderEngine 合成。
+- 刷新率/ARR/VRR 会改变帧预算。报告必须基于 `vsync_config`、VSYNC-sf、FrameTimeline 或等价证据，不默认 16.6ms。
+- GraphicBuffer/dma-buf 是图形物理内存证据面；BufferQueue/Fence slice 只能证明队列、同步和背压候选，不能单独证明图形内存泄漏或占用峰值。
 
 **Phase 1.8 — 帧内指标 / GPU / CPU 利用率补充（按需执行）：**
 
@@ -277,10 +288,10 @@ invoke_skill("scrolling_analysis", { start_ts: "<trace_start>", end_ts: "<trace_
 | **gc_overlap >3ms 或 gc_pressure_cascade** | 查询 `android_garbage_collection_events` WHERE gc_ts 在帧窗口内 | 哪种 GC？回收了多少？GC 运行耗时？是否有内存泄漏趋势？|
 | **thermal_throttling / cpu_max_limited** | `lookup_knowledge("thermal-throttling")` | 温度驱动 vs policy 驱动？限频比例？是否持续恶化？|
 | **render_thread_heavy** | `invoke_skill("jank_frame_detail", {start_ts, end_ts})` 查看 render_slices_json | RT 内部瓶颈：uploadBitmap？syncFrameState？drawFrame？eglSwapBuffers？|
-| **sf_composition_slow** | `invoke_skill("surfaceflinger_analysis")` | SF 合成瓶颈：HWC delay？GPU 回退合成？Layer 过多？|
+| **sf_composition_slow** | `invoke_skill("surfaceflinger_analysis")`，必要时补 `buffer_transaction_lifecycle` / `fence_wait_decomposition` | SF 合成瓶颈：commit/composite/present 哪段慢？HWC delay？GPU 回退合成？Layer 过多？Fence/BufferQueue 背压？|
 | **freq_ramp_slow** | `lookup_knowledge("cpu-scheduler")` | 是 governor 升频延迟还是 thermal 限频？|
 | **small_core_placement** | `lookup_knowledge("cpu-scheduler")` | 为什么被调度到小核？大核被谁占用？|
-| **gpu_fence_wait / shader_compile** | `lookup_knowledge("rendering-pipeline")` | GPU 频率是否被限？SF 合成是否是瓶颈？|
+| **gpu_fence_wait / shader_compile** | `lookup_knowledge("rendering-pipeline")`；fence/backpressure 命中时补 `fence_wait_decomposition` / `present_fence_timing` / `vsync_config` | GPU 频率是否被限？SF 合成是否是瓶颈？acquire/present/release fence 哪类等待主导？|
 
 **workload_heavy 子分类指导：** 当 reason_code = `workload_heavy` 时，检查 `top_slice_name` 字段是否**包含**以下关键字，进一步归类（这是字符串包含匹配，不是 SQL 查询）：
 
@@ -424,6 +435,11 @@ invoke_skill("jank_frame_detail", {
    - Input: 阶段 [input_stage] / 重叠 XXms / 最慢处理 XXms（如有 input 证据）
    ```
    如有额外深钻帧（来自 jank_frame_detail），标注其 CPU freq timeline 和 slices 详情。
+
+   如果代表帧涉及 SF/BufferQueue/Fence/刷新率，必须追加一行 display pipeline 拆分：
+   `App/RT -> BufferQueue -> SF commit/composite -> HWC/display -> fence`，并说明缺的是
+   acquire、present 还是 release fence 证据。不要把 `queueBuffer` 快写成“已上屏”，也不要把
+   GraphicBuffer/dma-buf 内存证据写成 BufferQueue 槽位证据。
 
 5. **优化建议**：按根因类别给出可操作建议，优先级按帧数占比排序。**必须分层标注**：
    - **[App 层]**：App 开发者可直接实施的优化（异步化、分帧、预加载、减少主线程阻塞等）— 建议要具体到代码模式

@@ -45,6 +45,14 @@ const missingFrameHint: PhaseHint = {
   critical: false,
 };
 
+const displayPipelineHint: PhaseHint = {
+  id: 'display_pipeline_boundary',
+  keywords: ['BufferQueue', 'dequeueBuffer', 'SurfaceFlinger', 'present fence', 'refresh rate', '刷新率'],
+  constraints: '拆分 BufferQueue/Fence/SF/HWC/display evidence',
+  criticalTools: ['surfaceflinger_analysis', 'fence_wait_decomposition'],
+  critical: false,
+};
+
 describe('matchPhaseHintForNextPhase', () => {
   it('returns undefined when no hints are configured', () => {
     expect(matchPhaseHintForNextPhase({
@@ -154,6 +162,19 @@ describe('matchPhaseHintForNextPhase', () => {
       finishedPhases: [],
     });
     expect(result?.id).toBe('missing_frame_gap');
+  });
+
+  it('matches display-pipeline phases when the plan carries BufferQueue or fence wording', () => {
+    const result = matchPhaseHintForNextPhase({
+      hints: [overviewHint, rootCauseHint, displayPipelineHint, conclusionHint],
+      nextPhase: {
+        name: 'Display pipeline deep dive',
+        goal: 'check BufferQueue dequeueBuffer release fence and SurfaceFlinger present evidence',
+      },
+      finishedPhases: [],
+    });
+
+    expect(result?.id).toBe('display_pipeline_boundary');
   });
 
   it('handles missing goal gracefully', () => {

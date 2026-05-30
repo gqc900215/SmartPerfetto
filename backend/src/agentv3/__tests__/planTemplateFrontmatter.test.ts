@@ -45,6 +45,18 @@ describe('plan_template frontmatter pipeline', () => {
     ]));
   });
 
+  it('keeps conditional BufferQueue/Fence and refresh-policy boundaries out of pipeline plan hard gates', () => {
+    const tpl = getPlanTemplate('pipeline');
+    expect(tpl).not.toBeNull();
+    const ids = tpl!.mandatoryAspects.map(aspect => aspect.id);
+    expect(ids).toEqual(expect.arrayContaining([
+      'architecture_detection',
+      'pipeline_skill_invocation',
+    ]));
+    expect(ids).not.toContain('buffer_fence_lifecycle');
+    expect(ids).not.toContain('refresh_policy_budget');
+  });
+
   it('returns null for unknown scenes', () => {
     expect(getPlanTemplate('this-scene-does-not-exist')).toBeNull();
   });
@@ -87,6 +99,7 @@ describe('plan_template frontmatter pipeline', () => {
     expect(scrollingTpl).toBeDefined();
     const ids = scrollingTpl!.mandatoryAspects.map(a => a.id);
     expect(ids).not.toContain('chrome_scroll_jank');
+    expect(ids).not.toContain('display_pipeline_boundary');
   });
 
   it('every registered scene resolves through dual-read without throwing', () => {

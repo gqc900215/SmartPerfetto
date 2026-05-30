@@ -31,7 +31,7 @@ tier: A
 
 meta:
   display_name: "Fence 等待分解（acquire/present/release）"
-  description: "按 3 种 fence 分类计时，归因 jank 到具体 fence 类型（S01 §3 fence）"
+  description: "按 3 种 fence 分类计时，归因 jank 到具体 fence 类型；内置 5ms/16ms 阈值是启发式，报告高刷新率场景时需结合 vsync_config/present_fence_timing"
   icon: "schedule"
   tags: [fence, acquire, present, release, surfaceflinger, gpu, s01]
   s_article_ref: "S01"
@@ -134,7 +134,7 @@ steps:
           type: duration
           format: duration_ms
         - name: late_present_count
-          label: "presentDisplay > 16ms 次数"
+          label: "presentDisplay > 固定16ms启发次数"
           type: number
     sql: |
       WITH
@@ -295,7 +295,7 @@ steps:
           WHEN COALESCE((SELECT v FROM release_p95_ns), 0) > 5e6
             THEN '上一帧 buffer 卡 ACQUIRED 状态：HWC 还在显示/SF 没释放/triple buffer 不足'
           WHEN COALESCE((SELECT v FROM present_p95_ns), 0) > 5e6
-            THEN 'Panel 模式切换/刷新率切换/扫描输出本身延迟（DSI/DP）'
+            THEN 'Panel 模式切换/刷新率切换/扫描输出本身延迟（DSI/DP）；5ms 为固定启发式，需结合实际 VSync 周期复核'
           WHEN COALESCE((SELECT v FROM acquire_p95_ns), 0) > 5e6
             THEN 'Producer GPU 写入慢；多 layer 场景看哪条 layer fence 晚'
           ELSE '三种 fence 都在正常范围；问题可能在锚点 ②③④⑤（生产段）或 ⑨⑩（HWC 决策段）'

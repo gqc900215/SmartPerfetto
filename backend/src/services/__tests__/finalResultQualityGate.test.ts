@@ -525,6 +525,206 @@ describe('final result quality gate', () => {
     })).toBeUndefined();
   });
 
+  it('flags pipeline reports that omit rendering-stage and BufferQueue/Fence boundaries', () => {
+    const hollowPipelineReport = [
+      '# 渲染管线分析报告',
+      '',
+      '## 阶段边界',
+      '',
+      '- 需要补充每个阶段的证据。',
+      '',
+      '## 同步边界',
+      '',
+      '- 需要补充同步证据。',
+    ].join('\n');
+
+    const issue = assessFinalResultQuality({
+      result: result({
+        conclusion: hollowPipelineReport,
+        findings: [{ severity: 'warning', title: '管线边界缺失', description: 'no details', evidence: ['BufferQueue'] } as any],
+      }),
+      query: '分析渲染管线 BufferQueue fence',
+      sceneType: 'pipeline',
+    });
+
+    expect(issue?.code).toBe('scene_contract_incomplete');
+    expect(issue?.message).toContain('渲染/显示阶段拆分');
+    expect(issue?.message).toContain('BufferQueue/Fence 边界');
+  });
+
+  it('does not require BufferQueue/Fence sections for generic pipeline-identification reports', () => {
+    const genericPipelineReport = [
+      '# 渲染管线分析报告',
+      '',
+      '## 渲染/显示阶段拆分',
+      '',
+      '| 阶段 | 证据 | 结论 |',
+      '| --- | --- | --- |',
+      '| Main/UI | Choreographer#doFrame 6.1ms | 主线程阶段正常 |',
+      '| RenderThread | DrawFrame 4.3ms | RT 阶段正常 |',
+      '| BufferQueue | queueBuffer 1.2ms | producer 提交阶段正常 |',
+      '| SurfaceFlinger/SF | commit/composite 3.2ms | SF 合成阶段正常 |',
+      '| HWC/display | VSync=16.67ms | display 阶段正常 |',
+      '',
+      '## 管线类型结论',
+      '',
+      '- 当前 trace 可按 Main/UI -> RenderThread -> BufferQueue -> SurfaceFlinger -> HWC/display 拆分。',
+    ].join('\n');
+
+    expect(assessFinalResultQuality({
+      result: result({ conclusion: genericPipelineReport }),
+      query: '分析渲染管线类型',
+      sceneType: 'pipeline',
+    })).toBeUndefined();
+  });
+
+  it('routes pure graphics-memory pipeline gaps to the graphics boundary instead of BufferQueue/Fence', () => {
+    const graphicsReportWithoutBoundary = [
+      '# 渲染管线分析报告',
+      '',
+      '## 渲染/显示阶段拆分',
+      '',
+      '| 阶段 | 证据 | 结论 |',
+      '| --- | --- | --- |',
+      '| Main/UI | Choreographer#doFrame 6.1ms | 主线程阶段正常 |',
+      '| RenderThread | DrawFrame 4.3ms | RT 阶段正常 |',
+      '| SurfaceFlinger/SF | commit/composite 3.2ms | SF 合成阶段正常 |',
+      '| HWC/display | presentDisplay 5.1ms | display 阶段正常 |',
+      '',
+      '## 图形资源观察',
+      '',
+      '- GraphicBuffer 数量偏多，需要进一步确认。',
+    ].join('\n');
+
+    const issue = assessFinalResultQuality({
+      result: result({ conclusion: graphicsReportWithoutBoundary }),
+      query: 'GraphicBuffer dma-buf 图形内存证据怎么分析',
+      sceneType: 'pipeline',
+    });
+
+    expect(issue?.code).toBe('scene_contract_incomplete');
+    expect(issue?.message).toContain('图形内存/刷新策略边界');
+    expect(issue?.message).not.toContain('BufferQueue/Fence 边界');
+  });
+
+  it('flags HWC/SF overlay pipeline reports that omit the conditional boundary', () => {
+    const reportWithoutPolicyBoundary = [
+      '# 渲染管线分析报告',
+      '',
+      '## 渲染/显示阶段拆分',
+      '',
+      '| 阶段 | 证据 | 结论 |',
+      '| --- | --- | --- |',
+      '| Main/UI | Choreographer#doFrame 6.1ms | 主线程阶段正常 |',
+      '| RenderThread | DrawFrame 4.3ms | RT 阶段正常 |',
+      '| BufferQueue | queueBuffer 1.2ms | producer 提交阶段正常 |',
+      '| SurfaceFlinger/SF | commit/composite 3.2ms | SF 合成阶段正常 |',
+      '| HWC/display | HWC overlay 命中，presentDisplay 5.1ms | display 阶段正常 |',
+    ].join('\n');
+
+    const issue = assessFinalResultQuality({
+      result: result({ conclusion: reportWithoutPolicyBoundary }),
+      query: 'HWC overlay 怎么分析',
+      sceneType: 'pipeline',
+    });
+
+    expect(issue?.code).toBe('scene_contract_incomplete');
+    expect(issue?.message).toContain('图形内存/刷新策略边界');
+    expect(issue?.message).not.toContain('BufferQueue/Fence 边界');
+  });
+
+  it('accepts graphics-memory pipeline reports without a BufferQueue/Fence section when no fence evidence is requested', () => {
+    const graphicsOnlyReport = [
+      '# 渲染管线分析报告',
+      '',
+      '## 渲染/显示阶段拆分',
+      '',
+      '| 阶段 | 证据 | 结论 |',
+      '| --- | --- | --- |',
+      '| Main/UI | Choreographer#doFrame 6.1ms | 主线程阶段正常 |',
+      '| RenderThread | DrawFrame 4.3ms | RT 阶段正常 |',
+      '| SurfaceFlinger/SF | commit/composite 3.2ms | SF 合成阶段正常 |',
+      '| HWC/display | presentDisplay 5.1ms | display 阶段正常 |',
+      '',
+      '## 图形内存/刷新策略边界',
+      '',
+      '- GraphicBuffer/dma-buf 是图形物理内存证据，不能仅凭渲染 slice 判断。',
+      '- SurfaceFlinger dumpsys 缺失，当前只能标注 evidence missing；confidence 为中等。',
+      '- 本结论只覆盖 graphics memory 边界，不声明同步等待。',
+    ].join('\n');
+
+    expect(assessFinalResultQuality({
+      result: result({ conclusion: graphicsOnlyReport }),
+      query: 'GraphicBuffer dma-buf 图形内存证据怎么分析',
+      sceneType: 'pipeline',
+    })).toBeUndefined();
+  });
+
+  it('accepts HWC/SF policy pipeline reports that satisfy the conditional boundary', () => {
+    const hwcPolicyReport = [
+      '# 渲染管线分析报告',
+      '',
+      '## 渲染/显示阶段拆分',
+      '',
+      '| 阶段 | 证据 | 结论 |',
+      '| --- | --- | --- |',
+      '| Main/UI | Choreographer#doFrame 6.1ms | 主线程阶段正常 |',
+      '| RenderThread | DrawFrame 4.3ms | RT 阶段正常 |',
+      '| BufferQueue | queueBuffer 1.2ms | producer 提交阶段正常 |',
+      '| SurfaceFlinger/SF | commit/composite 3.2ms | SF 合成阶段正常 |',
+      '| HWC/display | HWC overlay policy 命中，presentDisplay 5.1ms | display 阶段正常 |',
+      '',
+      '## 图形内存/刷新策略边界',
+      '',
+      '- HWC overlay policy 属于 SurfaceFlinger/HWC 合成策略边界，不能等同 BufferQueue 或上屏完成。',
+      '- 缺失 dumpsys SurfaceFlinger layer policy 时只能标注 evidence missing；confidence 为中等。',
+    ].join('\n');
+
+    expect(assessFinalResultQuality({
+      result: result({ conclusion: hwcPolicyReport }),
+      query: 'SurfaceFlinger HWC overlay policy 怎么分析',
+      sceneType: 'pipeline',
+    })).toBeUndefined();
+  });
+
+  it('accepts pipeline reports that split rendering stages and fence semantics', () => {
+    const richPipelineReport = [
+      '# 渲染管线分析报告',
+      '',
+      '## 渲染/显示阶段拆分',
+      '',
+      '| 阶段 | 证据 | 结论 |',
+      '| --- | --- | --- |',
+      '| Main/UI | Choreographer#doFrame 8.1ms | 主线程未超预算 |',
+      '| RenderThread | DrawFrame 5.4ms | RT 正常提交 |',
+      '| BufferQueue | queueBuffer 快、dequeueBuffer P95=9.2ms | producer 提交不慢，但复用 buffer 存在等待 |',
+      '| SurfaceFlinger/SF | commit/composite 4.8ms，FrameTimeline present late 3帧 | SF 合成有轻微延迟 |',
+      '| HWC/display | presentDisplay P95=7.1ms，VSync=8.33ms | 高刷新率预算下接近上限 |',
+      '',
+      '## BufferQueue/Fence 边界',
+      '',
+      '- queueBuffer 不等于上屏；它只证明 producer submission。',
+      '- dequeueBuffer 等待更接近 release fence/backpressure。',
+      '- acquire fence 影响 SF latch，present fence 影响可见上屏，release fence 影响 producer 复用。',
+      '- BLAST Transaction 到达和 SurfaceFlinger latch 是独立阶段，不能混用。',
+      '',
+      '## 图形内存/刷新策略边界',
+      '',
+      '- 当前没有 GraphicBuffer/dma-buf 图形内存证据，不能把 BufferQueue 槽位等待写成 graphics memory 泄漏。',
+      '- refresh-rate policy 证据来自 VSYNC-sf，ARR/VRR 和 setFrameRate 只是策略 hint；缺失 SurfaceFlinger dumpsys 时置信度为中等。',
+      '',
+      '## 推荐路径',
+      '',
+      '- 继续用 fence_wait_decomposition、present_fence_timing、vsync_config 和 surfaceflinger_analysis 复核。',
+    ].join('\n');
+
+    expect(assessFinalResultQuality({
+      result: result({ conclusion: richPipelineReport }),
+      query: '分析渲染管线 BufferQueue fence',
+      sceneType: 'pipeline',
+    })).toBeUndefined();
+  });
+
   it('flags memory reports that omit evidence scope and memory-type boundaries', () => {
     const shortMemoryReport = [
       '# 内存分析报告',

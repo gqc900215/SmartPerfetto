@@ -257,7 +257,7 @@ Each TODO item can be marked done only when all applicable gates pass:
 
 ### Batch 4 - Graphics Memory, BufferQueue, Fence, And Refresh Policy
 
-- [ ] TODO-005: Graphics-memory and BufferQueue/fence contract
+- [x] TODO-005: Graphics-memory and BufferQueue/fence contract
   - Target files:
     - `backend/strategies/scrolling.strategy.md`
     - `backend/strategies/pipeline.strategy.md`
@@ -272,6 +272,22 @@ Each TODO item can be marked done only when all applicable gates pass:
     - Add deterministic Skill SQL only with fixture coverage.
   - Verification:
     - Existing scrolling trace regression plus focused tests for prompt text.
+  - Completed in Batch 4:
+    - Added pipeline strategy routing, phase hints, and final-report contract
+      support for rendering-stage split plus conditionally-triggered
+      BufferQueue/Fence boundaries, with graphics-memory/refresh-policy as an
+      explicit evidence boundary.
+    - Added data-driven `trigger_patterns` support so optional evidence
+      surfaces can be verified when relevant without turning generic pipeline
+      identification into a BufferQueue/refresh-policy hard gate.
+    - Added scrolling display-pipeline boundary guidance for SF/BufferQueue/Fence,
+      hidden jank, Buffer Stuffing, and refresh-rate budget cases without making
+      every CPU-only scrolling report pass a new global gate.
+    - Clarified `fence_wait_decomposition` fixed-threshold output as heuristic
+      evidence that must be paired with actual VSync/present timing.
+    - Added focused tests for strategy loading, phase-hint matching,
+      plan-template frontmatter, real classifier routing, and final-result
+      quality gating.
 
 ### Batch 5 - Power Background Execution
 
@@ -328,15 +344,16 @@ Each TODO item can be marked done only when all applicable gates pass:
 
 ## Current Next Step
 
-Batch 3 is implemented and validated through the focused pre-landing gates:
+Batch 4 is implemented and validated through the landing gates:
 
-- Focused Jest passed for strategy loading, real registry routing,
-  plan-template frontmatter, scene-template output, and final-result contract
-  behavior.
+- Focused Jest passed for strategy loading, phase-hint matching, real registry
+  routing, plan-template frontmatter, and final-result contract behavior.
 - `validate:strategies`, `validate:skills`, backend build, and scene trace
   regression passed.
+- Read-only post-diff review passed after fixes for conditional pipeline
+  contract triggers and explicit `frame drop(s)` scrolling routing.
 - Repository-level `npm run verify:pr` passed, including root quality gates,
-  frontend prebuild check, Rust checks, backend core tests, and trace regression.
-- Read-only post-diff review passed with no blocking findings.
+  frontend prebuild check, Rust checks, backend core tests, and trace
+  regression.
 
-After this batch is committed and pushed to `main`, continue with Batch 4.
+Next: continue with Batch 5.
