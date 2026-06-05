@@ -128,6 +128,26 @@ jest.mock('../analysisPatternMemory', () => ({
 // Mock the schema index loading (it reads a JSON file at import time)
 jest.mock('fs', () => {
   const actual = jest.requireActual<typeof import('fs')>('fs');
+  const schemaFixture = JSON.stringify({
+    version: '1',
+    generatedAt: '',
+    templates: [{
+      id: 'metric.android.android_frame_timeline_metric_per_process',
+      name: 'android_frame_timeline_metric_per_process',
+      category: 'android',
+      type: 'view',
+      description: 'View: android_frame_timeline_metric_per_process',
+      requiredMetric: 'android/android_frame_timeline_metric.sql',
+      setupSql: "SELECT RUN_METRIC('android/android_frame_timeline_metric.sql');",
+      dependencies: ['metric:android/android_frame_timeline_metric.sql'],
+      columns: [
+        { name: 'total_frames', type: 'UNKNOWN' },
+        { name: 'weighted_missed_frames', type: 'UNKNOWN' },
+        { name: 'weighted_missed_app_frames', type: 'UNKNOWN' },
+        { name: 'weighted_missed_sf_frames', type: 'UNKNOWN' },
+      ],
+    }],
+  });
   return {
     ...actual,
     existsSync: jest.fn((...args: unknown[]) => {
@@ -138,6 +158,7 @@ jest.mock('fs', () => {
     }),
     readFileSync: jest.fn((...args: unknown[]) => {
       const p = args[0] as string;
+      if (typeof p === 'string' && p.includes('perfettoSqlIndex.light.json')) return schemaFixture;
       if (typeof p === 'string' && p.includes('perfettoSqlIndex')) return '{"version":"1","generatedAt":"","templates":[]}';
       if (typeof p === 'string' && p.includes('sql_learning')) return '[]';
       return (actual as any).readFileSync(p, args[1]);
@@ -977,6 +998,19 @@ describe('createClaudeMcpServer', () => {
       expect(frameEntry.module).toBe('android.frames.timeline');
       expect(frameEntry.include).toBe('INCLUDE PERFETTO MODULE android.frames.timeline;');
       expect(frameEntry.transitiveIncludes).toEqual(expect.arrayContaining(['slices.with_context']));
+    });
+
+    it('lookup_sql_schema marks metric-created entities with RUN_METRIC setup', async () => {
+      const { tools } = createTestServer();
+      const result = await callTool(tools, 'lookup_sql_schema', { keyword: 'weighted_missed_frames' });
+      const frameMetricEntry = result.entries.find(
+        (entry: any) => entry.name === 'android_frame_timeline_metric_per_process'
+      );
+
+      expect(frameMetricEntry.requiredMetric).toBe('android/android_frame_timeline_metric.sql');
+      expect(frameMetricEntry.setupSql).toBe("SELECT RUN_METRIC('android/android_frame_timeline_metric.sql');");
+      expect(frameMetricEntry.dependencies).toContain('metric:android/android_frame_timeline_metric.sql');
+      expect(frameMetricEntry.columns.map((column: any) => column.name)).toContain('weighted_missed_frames');
     });
   });
 

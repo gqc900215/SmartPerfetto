@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """
-Regenerate perfettoSqlIndex.light.json from the Perfetto stdlib source.
+Regenerate perfettoSqlIndex.light.json and perfettoSqlIndex.json from the
+Perfetto SQL source.
 
 Extracts CREATE PERFETTO FUNCTION/TABLE/VIEW declarations with their
 documentation comments. Produces a compact index used by the
-sqlKnowledgeBase for Claude's lookup_sql_schema tool.
+sqlKnowledgeBase for Claude's lookup_sql_schema tool, plus a full index with
+SQL source content for packaged full-SQL fallback paths.
 
 Usage:
     python3 scripts/regenerate-sql-index.py
 
 Output:
     data/perfettoSqlIndex.light.json
+    data/perfettoSqlIndex.json
 """
 
 import json
@@ -25,7 +28,9 @@ BACKEND_DIR = SCRIPT_DIR.parent
 REPO_ROOT = BACKEND_DIR.parent
 PERFETTO_DIR = REPO_ROOT / "perfetto"
 STDLIB_DIR = PERFETTO_DIR / "src" / "trace_processor" / "perfetto_sql" / "stdlib"
-OUTPUT_FILE = BACKEND_DIR / "data" / "perfettoSqlIndex.light.json"
+METRICS_DIR = PERFETTO_DIR / "src" / "trace_processor" / "metrics" / "sql"
+LIGHT_OUTPUT_FILE = BACKEND_DIR / "data" / "perfettoSqlIndex.light.json"
+FULL_OUTPUT_FILE = BACKEND_DIR / "data" / "perfettoSqlIndex.json"
 # Relative path stored in output — portable across machines, no /Users/<name> leak.
 STDLIB_REL = STDLIB_DIR.relative_to(REPO_ROOT).as_posix()
 
@@ -39,9 +44,10 @@ CREATE_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Pattern for simpler CREATE VIEW (non-PERFETTO)
-CREATE_VIEW_RE = re.compile(
-    r"CREATE\s+(?:OR\s+REPLACE\s+)?PERFETTO\s+VIEW\s+(\w+)",
+# Pattern for simpler CREATE VIEW/TABLE ... AS declarations without column parens.
+CREATE_SIMPLE_RE = re.compile(
+    r"CREATE\s+(?:OR\s+REPLACE\s+)?PERFETTO\s+(VIEW|TABLE)\s+"
+    r"(\w+(?:\.\w+)*)\s+AS\b",
     re.IGNORECASE,
 )
 
@@ -168,6 +174,8 @@ def extract_return_columns(lines: list[str], start_idx: int) -> list[dict]:
 AT_COLUMN_RE = re.compile(
     r"^--\s+@column\s+(?:(\w+)\s+)?(\w+)\s+(.*?)$"
 )
+INCLUDE_MODULE_RE = re.compile(r"INCLUDE\s+PERFETTO\s+MODULE\s+([\w.]+)", re.IGNORECASE)
+RUN_METRIC_RE = re.compile(r"RUN_METRIC\s*\(\s*['\"]([^'\"]+)['\"]", re.IGNORECASE)
 
 
 def extract_at_columns(lines: list[str], decl_line_idx: int) -> list[dict]:
@@ -259,7 +267,171 @@ def extract_view_columns(lines: list[str], start_idx: int) -> list[dict]:
     return columns
 
 
-def parse_sql_file(filepath: Path, category: str) -> list[dict]:
+def split_view_block(lines: list[str], decl_line_idx: int) -> str:
+    """Return SQL text for one CREATE view/table block."""
+    block = []
+    for line in lines[decl_line_idx:]:
+        if block and re.match(r"\s*(DROP|CREATE)\s+", line, re.IGNORECASE):
+            break
+        block.append(line)
+    return "\n".join(block)
+
+
+def split_select_expressions(select_list: str) -> list[str]:
+    """Split a SELECT list on top-level commas."""
+    expressions = []
+    current = []
+    depth = 0
+    quote = ""
+    i = 0
+    while i < len(select_list):
+        ch = select_list[i]
+        if quote:
+            current.append(ch)
+            if ch == quote:
+                quote = ""
+            elif ch == "\\" and i + 1 < len(select_list):
+                i += 1
+                current.append(select_list[i])
+            i += 1
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+            current.append(ch)
+        elif ch == "(":
+            depth += 1
+            current.append(ch)
+        elif ch == ")":
+            depth = max(0, depth - 1)
+            current.append(ch)
+        elif ch == "," and depth == 0:
+            expressions.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+        i += 1
+    if current:
+        expressions.append("".join(current))
+    return expressions
+
+
+def extract_select_alias_columns(lines: list[str], decl_line_idx: int) -> list[dict]:
+    """Best-effort output columns for CREATE ... AS SELECT views.
+
+    Perfetto metric SQL often declares output views as `CREATE PERFETTO VIEW
+    name AS WITH ... SELECT ...`; those files do not expose column declarations,
+    but the final SELECT aliases are still useful for lookup_sql_schema.
+    """
+    block = split_view_block(lines, decl_line_idx)
+    select_positions = [m.start() for m in re.finditer(r"\bSELECT\b", block, re.IGNORECASE)]
+    if not select_positions:
+        return []
+    select_start = select_positions[-1]
+    from_match = re.search(r"\bFROM\b", block[select_start:], re.IGNORECASE)
+    if not from_match:
+        return []
+    select_list = block[select_start + len("SELECT"):select_start + from_match.start()]
+    columns = []
+    for raw_part in split_select_expressions(select_list):
+        part = " ".join(raw_part.strip().split())
+        if not part:
+            continue
+        alias_match = re.search(r"\bAS\s+([A-Za-z_]\w*)$", part, re.IGNORECASE)
+        if alias_match:
+            name = alias_match.group(1)
+        else:
+            direct_match = re.match(r"^([A-Za-z_]\w*)$", part)
+            if not direct_match:
+                continue
+            name = direct_match.group(1)
+        columns.append({
+            "name": name,
+            "type": "UNKNOWN",
+            "description": "",
+        })
+    return columns
+
+
+def extract_dependencies(content: str) -> list[str]:
+    """Extract module/metric dependencies from a SQL file."""
+    deps = []
+    deps.extend(INCLUDE_MODULE_RE.findall(content))
+    deps.extend(f"metric:{m}" for m in RUN_METRIC_RE.findall(content))
+    return sorted(set(deps))
+
+
+def source_file_path(filepath: Path, source_dir: Path) -> str:
+    """Return a portable path relative to the given SQL source root."""
+    return filepath.relative_to(source_dir).as_posix()
+
+
+def enrich_full_entry(entry: dict, filepath: Path, source_dir: Path, content: str) -> dict:
+    """Attach full-index-only fields while preserving the light entry shape."""
+    full = dict(entry)
+    rel = source_file_path(filepath, source_dir)
+    parts = Path(rel).parts
+    if len(parts) > 2 and "subcategory" not in full:
+        full["subcategory"] = ".".join(parts[1:-1])
+    full["sql"] = content
+    full["filePath"] = rel
+    dependencies = set(full.get("dependencies", []))
+    dependencies.update(extract_dependencies(content))
+    full["dependencies"] = sorted(dependencies)
+    return full
+
+
+def stdlib_file_entry(filepath: Path, content: str, category: str) -> dict:
+    """Create a backwards-compatible full-index entry for a stdlib SQL file."""
+    rel = source_file_path(filepath, STDLIB_DIR)
+    name = filepath.stem
+    return {
+        "id": f"stdlib.{category}.{name}",
+        "name": name,
+        "category": category,
+        "type": "view",
+        "description": f"Stdlib module SQL: {rel}",
+        "sql": content,
+        "filePath": rel,
+        "dependencies": extract_dependencies(content),
+    }
+
+
+def metric_file_entry(filepath: Path, content: str, *, full: bool) -> dict:
+    """Create a file-level entry for RUN_METRIC-style metric SQL files."""
+    rel = source_file_path(filepath, METRICS_DIR)
+    rel_no_ext = rel[:-4] if rel.endswith(".sql") else rel
+    parts = Path(rel_no_ext).parts
+    category = parts[0] if parts else "metric"
+    name = Path(rel_no_ext).name
+    entry = {
+        "id": "metric." + ".".join(parts),
+        "name": name,
+        "category": category,
+        "type": "metric",
+        "description": f"Metric SQL: {rel}",
+    }
+    if len(parts) > 2:
+        entry["subcategory"] = ".".join(parts[1:-1])
+    if full:
+        entry["sql"] = content
+        entry["filePath"] = rel
+        entry["dependencies"] = extract_dependencies(content)
+    return entry
+
+
+def annotate_metric_declaration(entry: dict, filepath: Path) -> dict:
+    """Mark a metric-created declaration with the RUN_METRIC setup it needs."""
+    rel = source_file_path(filepath, METRICS_DIR)
+    annotated = dict(entry)
+    dependencies = set(annotated.get("dependencies", []))
+    dependencies.add(f"metric:{rel}")
+    annotated["dependencies"] = sorted(dependencies)
+    annotated["requiredMetric"] = rel
+    annotated["setupSql"] = f"SELECT RUN_METRIC('{rel}');"
+    return annotated
+
+
+def parse_sql_file(filepath: Path, category: str, id_prefix: str = "stdlib") -> list[dict]:
     """Parse a single SQL file and extract all declarations."""
     templates = []
 
@@ -273,19 +445,22 @@ def parse_sql_file(filepath: Path, category: str) -> list[dict]:
     for i, line in enumerate(lines):
         match = CREATE_RE.search(line)
         if not match:
-            # Try simpler CREATE VIEW (no parens after name, e.g., CREATE PERFETTO VIEW name AS ...)
-            view_match = CREATE_VIEW_RE.search(line)
-            if view_match:
-                name = view_match.group(1)
+            # Try simpler CREATE VIEW/TABLE (no parens after name).
+            simple_match = CREATE_SIMPLE_RE.search(line)
+            if simple_match:
+                decl_type = simple_match.group(1).lower()
+                name = simple_match.group(2)
                 desc = extract_doc_comment(lines, i)
                 # Try @column annotations from doc comments
                 columns = extract_at_columns(lines, i)
+                if not columns:
+                    columns = extract_select_alias_columns(lines, i)
                 templates.append({
-                    "id": f"stdlib.{category}.{name}",
+                    "id": f"{id_prefix}.{category}.{name}",
                     "name": name,
                     "category": category,
-                    "type": "view",
-                    "description": desc or f"View: {name}",
+                    "type": decl_type,
+                    "description": desc or f"{decl_type.title()}: {name}",
                     "columns": [{"name": c["name"], "type": c["type"]} for c in columns] if columns else [],
                 })
             continue
@@ -308,10 +483,12 @@ def parse_sql_file(filepath: Path, category: str) -> list[dict]:
         # Fallback: try @column annotations from doc comments if no inline columns found
         if not columns and decl_type in ("view", "table"):
             columns = extract_at_columns(lines, i)
+        if not columns and decl_type == "view":
+            columns = extract_select_alias_columns(lines, i)
 
         # Build template entry
         entry = {
-            "id": f"stdlib.{category}.{name}",
+            "id": f"{id_prefix}.{category}.{name}",
             "name": name,
             "category": category,
             "type": decl_type,
@@ -328,13 +505,55 @@ def parse_sql_file(filepath: Path, category: str) -> list[dict]:
     return templates
 
 
+def dedupe_by_name(templates: list[dict]) -> list[dict]:
+    """Deduplicate light-index entries by name, preserving first occurrence."""
+    seen = set()
+    unique_templates = []
+    for t in templates:
+        if t["name"] not in seen:
+            seen.add(t["name"])
+            unique_templates.append(t)
+    return unique_templates
+
+
+def dedupe_by_id(templates: list[dict]) -> list[dict]:
+    """Deduplicate full-index entries by id, preserving first occurrence."""
+    seen = set()
+    unique_templates = []
+    for t in templates:
+        if t["id"] not in seen:
+            seen.add(t["id"])
+            unique_templates.append(t)
+    return unique_templates
+
+
+def build_stats(templates: list[dict]) -> dict:
+    by_category = {}
+    for t in templates:
+        category = t.get("category", "unknown")
+        typ = t.get("type", "unknown")
+        cat = by_category.setdefault(category, {"count": 0, "types": {}})
+        cat["count"] += 1
+        cat["types"][typ] = cat["types"].get(typ, 0) + 1
+    return {
+        "totalTemplates": len(templates),
+        "byCategory": by_category,
+    }
+
+
 def main():
     if not STDLIB_DIR.exists():
         print(f"Error: stdlib directory not found at {STDLIB_DIR}", file=sys.stderr)
         sys.exit(1)
+    if not METRICS_DIR.exists():
+        print(f"Error: metrics SQL directory not found at {METRICS_DIR}", file=sys.stderr)
+        sys.exit(1)
 
-    all_templates = []
-    file_count = 0
+    light_templates = []
+    full_templates = []
+    stdlib_file_count = 0
+    declaration_file_count = 0
+    metrics_file_count = 0
 
     # Walk through all .sql files in stdlib
     for sql_file in sorted(STDLIB_DIR.rglob("*.sql")):
@@ -348,39 +567,80 @@ def main():
         if any(p.startswith("_") or p == "test" for p in parts[:-1]):
             continue
 
+        stdlib_file_count += 1
+        content = sql_file.read_text(encoding="utf-8")
         templates = parse_sql_file(sql_file, category)
         if templates:
-            all_templates.extend(templates)
-            file_count += 1
+            light_templates.extend(templates)
+            full_templates.extend(
+                enrich_full_entry(t, sql_file, STDLIB_DIR, content)
+                for t in templates
+            )
+            declaration_file_count += 1
+        full_templates.append(stdlib_file_entry(sql_file, content, category))
 
-    # Deduplicate by name (keep first occurrence)
-    seen = set()
-    unique_templates = []
-    for t in all_templates:
-        if t["name"] not in seen:
-            seen.add(t["name"])
-            unique_templates.append(t)
+    # Walk through metric SQL files as well. These are not stdlib modules but
+    # they define RUN_METRIC outputs and intermediate views that strategies can
+    # reference after SELECT RUN_METRIC(...).
+    for sql_file in sorted(METRICS_DIR.rglob("*.sql")):
+        rel = sql_file.relative_to(METRICS_DIR)
+        parts = list(rel.parts)
+        if any(p == "test" for p in parts[:-1]):
+            continue
+        category = parts[0] if len(parts) > 1 else "metric"
+        content = sql_file.read_text(encoding="utf-8")
+        parsed = [
+            annotate_metric_declaration(t, sql_file)
+            for t in parse_sql_file(sql_file, category, id_prefix="metric")
+        ]
+        if parsed:
+            light_templates.extend(parsed)
+            full_templates.extend(
+                enrich_full_entry(t, sql_file, METRICS_DIR, content)
+                for t in parsed
+            )
+        file_entry_light = metric_file_entry(sql_file, content, full=False)
+        file_entry_full = metric_file_entry(sql_file, content, full=True)
+        light_templates.append(file_entry_light)
+        full_templates.append(file_entry_full)
+        metrics_file_count += 1
 
-    # Build output
-    output = {
+    unique_light_templates = dedupe_by_name(light_templates)
+    unique_full_templates = dedupe_by_id(full_templates)
+
+    # Build outputs
+    light_output = {
         "version": "2.0",
         "generatedAt": datetime.now().isoformat(),
         "source": STDLIB_REL,
-        "templates": unique_templates,
+        "templates": unique_light_templates,
+        "scenarios": [],  # Preserved for compatibility
+    }
+    full_output = {
+        "version": "2.0",
+        "generatedAt": datetime.now().isoformat(),
+        "source": {
+            "stdlib": STDLIB_REL,
+            "metrics": METRICS_DIR.relative_to(REPO_ROOT).as_posix(),
+        },
+        "stats": build_stats(unique_full_templates),
+        "templates": unique_full_templates,
         "scenarios": [],  # Preserved for compatibility
     }
 
-    # Write output
-    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2, ensure_ascii=False)
+    # Write outputs
+    LIGHT_OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(LIGHT_OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(light_output, f, indent=2, ensure_ascii=False)
+    with open(FULL_OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(full_output, f, indent=2, ensure_ascii=False)
 
     # Stats
     types = {}
     desc_quality = {"good": 0, "placeholder": 0}
     with_columns = 0
     total_columns = 0
-    for t in unique_templates:
+    for t in unique_light_templates:
         types[t["type"]] = types.get(t["type"], 0) + 1
         if t["description"].startswith(("Function:", "View:", "Table:", "Macro:")) or len(t["description"]) < 10:
             desc_quality["placeholder"] += 1
@@ -390,12 +650,15 @@ def main():
             with_columns += 1
             total_columns += len(t["columns"])
 
-    print(f"Regenerated {OUTPUT_FILE.name}")
-    print(f"  Files scanned: {file_count}")
-    print(f"  Templates: {len(unique_templates)}")
+    print(f"Regenerated {LIGHT_OUTPUT_FILE.name} and {FULL_OUTPUT_FILE.name}")
+    print(f"  Stdlib files scanned: {stdlib_file_count}")
+    print(f"  Stdlib files with declarations: {declaration_file_count}")
+    print(f"  Metric files scanned: {metrics_file_count}")
+    print(f"  Light templates: {len(unique_light_templates)}")
+    print(f"  Full templates: {len(unique_full_templates)}")
     print(f"  Types: {types}")
     print(f"  Description quality: {desc_quality['good']} good, {desc_quality['placeholder']} placeholder")
-    print(f"  Column coverage: {with_columns}/{len(unique_templates)} templates ({total_columns} total columns)")
+    print(f"  Column coverage: {with_columns}/{len(unique_light_templates)} templates ({total_columns} total columns)")
 
 
 if __name__ == "__main__":

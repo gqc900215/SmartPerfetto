@@ -53,7 +53,7 @@ The script:
 4. Installs Windows x64 production dependencies in the package directory with `npm ci --omit=dev --include=optional --os=win32 --cpu=x64`.
 5. Verifies the Windows `better-sqlite3` native module and `@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe`.
 6. Downloads and verifies the Node.js 24 Windows x64 zip.
-7. Downloads and verifies `v54.0/windows-amd64/trace_processor_shell.exe`.
+7. Downloads and verifies `v56.0/windows-amd64/trace_processor_shell.exe`.
 8. Cross-compiles the Go launcher as `SmartPerfetto.exe`.
 9. Writes `PACKAGE-MANIFEST.json` with the version, zip top-level directory,
    git commit, dirty status, Node runtime, and trace processor pin.

@@ -154,6 +154,12 @@ list_skills(type="pipeline")
 | Camera | camera_pipeline | 相机预览管线 |
 | Video Overlay | video_overlay_hwc | 视频 HWC Overlay |
 
+Camera 管线判定可以在 Pixel/Google Camera trace 中优先探测
+`pixel_camera_frames` 和 `pixel_camera_memory_span`，用于补充 camera graph
+阶段、GoogleCamera / camera HAL / cameraserver RSS 与 DMA heap 证据。该 stdlib
+是 Pixel-specific，可用前必须 `lookup_sql_schema`，不可替代通用 camera HAL /
+SurfaceFlinger / HWC / app producer 证据链。
+
 展示教学内容：
 - **Mermaid 时序图**：帧从生产到消费的完整流程
 - **线程角色表**：关键线程名、职责、对应的 trace 标签

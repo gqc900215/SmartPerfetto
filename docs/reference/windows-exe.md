@@ -50,7 +50,7 @@ dist/windows-exe/smartperfetto-v1.0.1-windows-x64.zip
 4. 在发布目录里用 `npm ci --omit=dev --include=optional --os=win32 --cpu=x64` 安装 Windows x64 production 依赖。
 5. 校验 Windows 版 `better-sqlite3` native module 和 `@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe` 已存在。
 6. 下载并校验 Node.js 24 Windows x64 zip。
-7. 下载并校验 `v54.0/windows-amd64/trace_processor_shell.exe`。
+7. 下载并校验 `v56.0/windows-amd64/trace_processor_shell.exe`。
 8. 用 Go 交叉编译 `SmartPerfetto.exe` 启动器。
 9. 写入 `PACKAGE-MANIFEST.json`，记录版本、zip 顶层目录、git commit、
    dirty 状态、Node runtime 和 trace processor pin。

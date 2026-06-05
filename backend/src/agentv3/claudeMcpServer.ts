@@ -597,6 +597,11 @@ function compactLegacySqlSchemaEntry(entry: SqlSchemaEntry): Record<string, unkn
   };
   if (entry.module) out.module = entry.module;
   if (entry.include) out.include = entry.include;
+  if (entry.dependencies?.length) out.dependencies = entry.dependencies;
+  if (entry.requiredMetric) out.requiredMetric = entry.requiredMetric;
+  if (entry.setupSql) out.setupSql = entry.setupSql;
+  if (entry.sourcePath) out.sourcePath = entry.sourcePath;
+  if (entry.filePath) out.filePath = entry.filePath;
   if (entry.columns?.length) out.columns = entry.columns;
   if (entry.params?.length) out.params = entry.params;
   if (entry.returnType) out.returnType = entry.returnType;
@@ -2351,14 +2356,23 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
       const tokens = lower.split(/[\s_]+/).filter(t => t.length >= 2);
 
       // Scoring function: exact substring match scores highest, token prefix matches next
-      function scoreEntry(t: { name: string; category: string; description: string }): number {
+      function scoreEntry(t: { name: string; category: string; description: string; columns?: Array<{ name?: string }> }): number {
         const name = t.name.toLowerCase();
         const cat = t.category.toLowerCase();
         const desc = t.description.toLowerCase();
-        const searchable = `${name} ${cat} ${desc}`;
+        const columnNames = (t.columns ?? [])
+          .map(c => c.name ?? '')
+          .filter(Boolean)
+          .map(c => c.toLowerCase());
+        const columns = columnNames.join(' ');
+        const searchable = `${name} ${cat} ${desc} ${columns}`;
 
-        // Exact substring match (original behavior)
-        if (name.includes(lower) || cat.includes(lower) || desc.includes(lower)) return 10;
+        if (name === lower) return 2000;
+        if (columnNames.some(column => column === lower)) return 1900;
+        if (name.includes(lower)) return 500;
+        if (columnNames.some(column => column.includes(lower))) return 400;
+        if (cat.includes(lower)) return 100;
+        if (desc.includes(lower)) return 50;
 
         // Token-based matching: count how many query tokens match
         if (tokens.length <= 1) return 0;

@@ -1,19 +1,19 @@
 {
   "version": 1,
-  "generatedAt": "2026-05-16T14:23:12.681Z",
-  "generatedFrom": "acd9f04a5a8a9773dcbd71d110a01bcded3a6d00",
-  "sourceDocs": "frontend/v55.2-acd9f04a5/stdlib_docs.json",
+  "generatedAt": "2026-06-05T15:24:20.967Z",
+  "generatedFrom": "10d908b9f9277de86eb1438be4213d99e842c2d5",
+  "sourceDocs": "frontend/v56.0-9986a6a7c/stdlib_docs.json",
   "pfsqlLineage": {
     "status": "unavailable"
   },
   "stats": {
-    "moduleCount": 247,
-    "entryCount": 417,
+    "moduleCount": 248,
+    "entryCount": 434,
     "byType": {
-      "table": 181,
+      "function": 69,
+      "table": 182,
       "table_function": 30,
       "view": 132,
-      "function": 53,
       "macro": 21
     }
   },
@@ -151,7 +151,8 @@
         "power"
       ],
       "includes": [
-        "counters.intervals"
+        "counters.intervals",
+        "intervals.fill_gaps"
       ],
       "dataCheckSql": "SELECT EXISTS(SELECT 1 FROM slice WHERE name = 'BatteryStatus' LIMIT 1) AS has_data",
       "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/android/battery/charging_states.sql",
@@ -161,7 +162,9 @@
         "android_charging_states"
       ],
       "transitiveIncludes": [
-        "counters.intervals"
+        "counters.intervals",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -217,7 +220,9 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
-        "slices.flow"
+        "intervals.fill_gaps",
+        "slices.flow",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -249,6 +254,7 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "slices.flow",
@@ -321,6 +327,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "std.metasql.unparenthesize"
@@ -370,8 +377,10 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
+        "intervals.fill_gaps",
         "slices.flow",
-        "slices.with_context"
+        "slices.with_context",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -587,8 +596,10 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
+        "intervals.fill_gaps",
         "slices.flow",
-        "slices.with_context"
+        "slices.with_context",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -904,7 +915,9 @@
         "android.battery.charging_states",
         "android.screen_state",
         "counters.intervals",
-        "intervals.intersect"
+        "intervals.fill_gaps",
+        "intervals.intersect",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -928,7 +941,9 @@
       ],
       "transitiveIncludes": [
         "android.suspend",
-        "counters.intervals"
+        "counters.intervals",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -1377,7 +1392,9 @@
         "android_monitor_contention_graph"
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -1438,7 +1455,9 @@
       "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/android/package_lookup.sql",
       "missingIncludes": [],
       "errors": [],
-      "symbols": [],
+      "symbols": [
+        "android_package_lookup"
+      ],
       "transitiveIncludes": []
     },
     {
@@ -1538,7 +1557,8 @@
         "ui"
       ],
       "includes": [
-        "counters.intervals"
+        "counters.intervals",
+        "intervals.fill_gaps"
       ],
       "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/android/screen_state.sql",
       "missingIncludes": [],
@@ -1547,7 +1567,9 @@
         "android_screen_state"
       ],
       "transitiveIncludes": [
-        "counters.intervals"
+        "counters.intervals",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -1593,8 +1615,10 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
+        "intervals.fill_gaps",
         "slices.flow",
-        "slices.with_context"
+        "slices.with_context",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -1648,6 +1672,7 @@
         "android.suspend",
         "android.user_list",
         "android.version",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "slices.hierarchy",
@@ -1704,6 +1729,7 @@
         "android.suspend",
         "android.user_list",
         "android.version",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.mipmap",
         "intervals.overlap",
@@ -1896,14 +1922,19 @@
         "android",
         "power"
       ],
-      "includes": [],
+      "includes": [
+        "intervals.fill_gaps"
+      ],
       "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/android/suspend.sql",
       "missingIncludes": [],
       "errors": [],
       "symbols": [
         "android_suspend_state"
       ],
-      "transitiveIncludes": []
+      "transitiveIncludes": [
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
+      ]
     },
     {
       "package": "android",
@@ -1974,7 +2005,9 @@
         "android_wakeups"
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -2991,6 +3024,22 @@
     },
     {
       "package": "intervals",
+      "module": "intervals.fill_gaps",
+      "moduleDoc": "",
+      "tags": [],
+      "includes": [
+        "std.metasql.unparenthesize"
+      ],
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/intervals/fill_gaps.sql",
+      "missingIncludes": [],
+      "errors": [],
+      "symbols": [],
+      "transitiveIncludes": [
+        "std.metasql.unparenthesize"
+      ]
+    },
+    {
+      "package": "intervals",
       "module": "intervals.intersect",
       "moduleDoc": "",
       "tags": [
@@ -3045,6 +3094,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "std.metasql.unparenthesize"
       ]
@@ -3070,6 +3120,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "std.metasql.unparenthesize"
@@ -3449,6 +3500,7 @@
       "missingIncludes": [],
       "errors": [],
       "symbols": [
+        "linux_perf_counter_for_sample",
         "linux_perf_sample_with_counters"
       ],
       "transitiveIncludes": []
@@ -3532,6 +3584,8 @@
         "android"
       ],
       "includes": [
+        "counters.global_tracks",
+        "linux.memory.process",
         "slices.with_context"
       ],
       "dataCheckSql": "SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB 'cam*_*:* (frame *)' LIMIT 1) AS has_data",
@@ -3539,9 +3593,13 @@
       "missingIncludes": [],
       "errors": [],
       "symbols": [
-        "pixel_camera_frames"
+        "pixel_camera_frames",
+        "pixel_camera_memory_span"
       ],
       "transitiveIncludes": [
+        "counters.global_tracks",
+        "linux.memory.general",
+        "linux.memory.process",
         "slices.with_context"
       ]
     },
@@ -3830,7 +3888,22 @@
       "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
       "missingIncludes": [],
       "errors": [],
-      "symbols": [],
+      "symbols": [
+        "abs_time_str",
+        "base64_decode",
+        "base64_encode",
+        "demangle",
+        "exp",
+        "ln",
+        "regexp_extract",
+        "regexp_replace_simple",
+        "reverse",
+        "sqrt",
+        "to_monotonic",
+        "to_realtime",
+        "to_timecode",
+        "unhex"
+      ],
       "transitiveIncludes": []
     },
     {
@@ -3992,6 +4065,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "std.metasql.unparenthesize"
@@ -4014,6 +4088,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "sched.thread_executing_span",
@@ -4044,6 +4119,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "std.metasql.unparenthesize"
@@ -4064,6 +4140,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "slices.flat_slices",
@@ -4159,6 +4236,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "slices.with_context",
@@ -4685,6 +4763,7 @@
         "android.suspend",
         "android.user_list",
         "counters.intervals",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "linux.cpu.frequency",
@@ -4763,9 +4842,11 @@
         "android.device",
         "android.suspend",
         "counters.intervals",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "linux.cpu.frequency",
         "linux.devfreq",
+        "std.metasql.unparenthesize",
         "time.conversion",
         "wattson.cpu.arm_dsu",
         "wattson.cpu.freq",
@@ -4826,8 +4907,10 @@
         "android.device",
         "android.suspend",
         "counters.intervals",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "linux.cpu.frequency",
+        "std.metasql.unparenthesize",
         "time.conversion",
         "wattson.cpu.freq",
         "wattson.cpu.hotplug",
@@ -4862,6 +4945,8 @@
       "transitiveIncludes": [
         "android.device",
         "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize",
         "time.conversion",
         "wattson.device_infos",
         "wattson.utils"
@@ -4894,6 +4979,7 @@
         "intervals.intersect",
         "wattson.cpu.arm_dsu",
         "wattson.cpu.freq_idle",
+        "wattson.cpu.hotplug",
         "wattson.curves.utils",
         "wattson.device_infos",
         "wattson.utils"
@@ -4906,9 +4992,11 @@
         "android.device",
         "android.suspend",
         "counters.intervals",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "linux.cpu.frequency",
         "linux.devfreq",
+        "std.metasql.unparenthesize",
         "time.conversion",
         "wattson.cpu.arm_dsu",
         "wattson.cpu.freq",
@@ -5058,9 +5146,11 @@
         "android.gpu.mali_power_state",
         "android.suspend",
         "counters.intervals",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "linux.cpu.frequency",
         "linux.devfreq",
+        "std.metasql.unparenthesize",
         "time.conversion",
         "wattson.cpu.arm_dsu",
         "wattson.cpu.estimates",
@@ -5168,6 +5258,7 @@
         "android.suspend",
         "android.user_list",
         "counters.intervals",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "linux.cpu.frequency",
@@ -5277,6 +5368,7 @@
         "android.suspend",
         "android.user_list",
         "counters.intervals",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "linux.cpu.frequency",
@@ -5330,6 +5422,7 @@
         "android.process_metadata",
         "android.suspend",
         "android.user_list",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "linux.irqs",
@@ -5399,9 +5492,11 @@
         "android.gpu.mali_power_state",
         "android.suspend",
         "counters.intervals",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "linux.cpu.frequency",
         "linux.devfreq",
+        "std.metasql.unparenthesize",
         "time.conversion",
         "wattson.cpu.arm_dsu",
         "wattson.cpu.estimates",
@@ -5474,6 +5569,32 @@
     }
   ],
   "entries": [
+    {
+      "id": "stdlib.prelude.before_eof.functions.abs_time_str",
+      "name": "abs_time_str",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Converts a trace timestamp to an absolute ISO 8601 time string",
+      "fullDescription": "Converts a trace timestamp to an absolute ISO 8601 time string.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "STRING",
+      "returnDescription": "The ISO 8601 formatted time string, or NULL if conversion fails.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "ts",
+          "type": "LONG",
+          "description": "The trace timestamp (in nanoseconds)."
+        }
+      ],
+      "transitiveIncludes": []
+    },
     {
       "id": "stdlib.prelude.after_eof.events.actual_frame_timeline_slice",
       "name": "actual_frame_timeline_slice",
@@ -6497,6 +6618,7 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "slices.flow",
@@ -6580,6 +6702,7 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "slices.flow",
@@ -6644,7 +6767,9 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
-        "slices.flow"
+        "intervals.fill_gaps",
+        "slices.flow",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -6691,7 +6816,9 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
-        "slices.flow"
+        "intervals.fill_gaps",
+        "slices.flow",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -6744,7 +6871,9 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
-        "slices.flow"
+        "intervals.fill_gaps",
+        "slices.flow",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -6791,7 +6920,9 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
-        "slices.flow"
+        "intervals.fill_gaps",
+        "slices.flow",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -6855,6 +6986,7 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "slices.flow",
@@ -7153,7 +7285,9 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
-        "slices.flow"
+        "intervals.fill_gaps",
+        "slices.flow",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -7378,7 +7512,8 @@
       ],
       "include": "INCLUDE PERFETTO MODULE android.battery.charging_states;",
       "moduleIncludes": [
-        "counters.intervals"
+        "counters.intervals",
+        "intervals.fill_gaps"
       ],
       "dataCheckSql": "SELECT EXISTS(SELECT 1 FROM slice WHERE name = 'BatteryStatus' LIMIT 1) AS has_data",
       "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/android/battery/charging_states.sql",
@@ -7386,7 +7521,7 @@
         {
           "name": "id",
           "type": "LONG",
-          "description": "Alias of counter.id if a slice with charging state exists otherwise there will be a single row where id = 1."
+          "description": "A unique id for each row."
         },
         {
           "name": "ts",
@@ -7410,7 +7545,9 @@
         }
       ],
       "transitiveIncludes": [
-        "counters.intervals"
+        "counters.intervals",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -7537,6 +7674,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "std.metasql.unparenthesize"
@@ -8317,7 +8455,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -8350,7 +8490,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -8383,7 +8525,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -8416,7 +8560,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -8449,7 +8595,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -8482,7 +8630,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -8515,7 +8665,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -8548,7 +8700,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -8581,7 +8735,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -11084,7 +11240,9 @@
         "android.battery.charging_states",
         "android.screen_state",
         "counters.intervals",
-        "intervals.intersect"
+        "intervals.fill_gaps",
+        "intervals.intersect",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -11297,7 +11455,9 @@
         "android.battery.charging_states",
         "android.screen_state",
         "counters.intervals",
-        "intervals.intersect"
+        "intervals.fill_gaps",
+        "intervals.intersect",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -11361,7 +11521,9 @@
       ],
       "transitiveIncludes": [
         "android.suspend",
-        "counters.intervals"
+        "counters.intervals",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -11878,7 +12040,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -12062,7 +12226,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -12108,7 +12274,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -12166,7 +12334,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -12212,7 +12382,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -12253,7 +12425,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -12707,6 +12881,32 @@
         "counters.intervals",
         "slices.with_context"
       ]
+    },
+    {
+      "id": "stdlib.android.package_lookup.android_package_lookup",
+      "name": "android_package_lookup",
+      "type": "function",
+      "category": "android",
+      "subcategory": "package_lookup",
+      "module": "android.package_lookup",
+      "package": "android",
+      "description": "Returns the package name associated with the provided uid",
+      "fullDescription": "Returns the package name associated with the provided uid. If more than one package matches the uid, a scoring system will pick the best one.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE android.package_lookup;",
+      "moduleIncludes": [],
+      "returnType": "STRING",
+      "returnDescription": "The best-matching package name, or NULL if no package matches.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/android/package_lookup.sql",
+      "params": [
+        {
+          "name": "uid",
+          "type": "LONG",
+          "description": "The uid to look up."
+        }
+      ],
+      "transitiveIncludes": []
     },
     {
       "id": "stdlib.android.power_rails.android_power_rails_counters",
@@ -13189,7 +13389,8 @@
       ],
       "include": "INCLUDE PERFETTO MODULE android.screen_state;",
       "moduleIncludes": [
-        "counters.intervals"
+        "counters.intervals",
+        "intervals.fill_gaps"
       ],
       "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/android/screen_state.sql",
       "columns": [
@@ -13225,7 +13426,9 @@
         }
       ],
       "transitiveIncludes": [
-        "counters.intervals"
+        "counters.intervals",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -13426,8 +13629,10 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
+        "intervals.fill_gaps",
         "slices.flow",
-        "slices.with_context"
+        "slices.with_context",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -13654,6 +13859,7 @@
         "android.suspend",
         "android.user_list",
         "android.version",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "slices.hierarchy",
@@ -14441,7 +14647,9 @@
         "power"
       ],
       "include": "INCLUDE PERFETTO MODULE android.suspend;",
-      "moduleIncludes": [],
+      "moduleIncludes": [
+        "intervals.fill_gaps"
+      ],
       "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/android/suspend.sql",
       "columns": [
         {
@@ -14467,7 +14675,10 @@
           "column": "id"
         }
       ],
-      "transitiveIncludes": []
+      "transitiveIncludes": [
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
+      ]
     },
     {
       "id": "stdlib.android.binder.android_sync_binder_blocked_functions_by_txn",
@@ -14549,7 +14760,9 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
-        "slices.flow"
+        "intervals.fill_gaps",
+        "slices.flow",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -14632,7 +14845,9 @@
         "android.suspend",
         "android.user_list",
         "graphs.search",
-        "slices.flow"
+        "intervals.fill_gaps",
+        "slices.flow",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -15164,7 +15379,9 @@
         }
       ],
       "transitiveIncludes": [
-        "android.suspend"
+        "android.suspend",
+        "intervals.fill_gaps",
+        "std.metasql.unparenthesize"
       ]
     },
     {
@@ -15769,6 +15986,58 @@
       "transitiveIncludes": [
         "prelude.after_eof.casts"
       ]
+    },
+    {
+      "id": "stdlib.prelude.before_eof.functions.base64_decode",
+      "name": "base64_decode",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Decodes a base64-encoded string into bytes",
+      "fullDescription": "Decodes a base64-encoded string into bytes.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "BYTES",
+      "returnDescription": "The decoded bytes.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "input",
+          "type": "STRING",
+          "description": "The base64-encoded string to decode."
+        }
+      ],
+      "transitiveIncludes": []
+    },
+    {
+      "id": "stdlib.prelude.before_eof.functions.base64_encode",
+      "name": "base64_encode",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Encodes bytes into a base64 string",
+      "fullDescription": "Encodes bytes into a base64 string.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "STRING",
+      "returnDescription": "The base64-encoded string.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "input",
+          "type": "BYTES",
+          "description": "The bytes to encode."
+        }
+      ],
+      "transitiveIncludes": []
     },
     {
       "id": "stdlib.prelude.after_eof.casts.cast_double",
@@ -24228,6 +24497,32 @@
       ]
     },
     {
+      "id": "stdlib.prelude.before_eof.functions.demangle",
+      "name": "demangle",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Demangles a C++ mangled symbol name",
+      "fullDescription": "Demangles a C++ mangled symbol name.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "STRING",
+      "returnDescription": "The demangled symbol name, or NULL if demangling fails.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "input",
+          "type": "STRING",
+          "description": "The mangled symbol name."
+        }
+      ],
+      "transitiveIncludes": []
+    },
+    {
       "id": "stdlib.slices.stack.descendant_slice_by_stack",
       "name": "descendant_slice_by_stack",
       "type": "table_function",
@@ -24320,6 +24615,32 @@
       "transitiveIncludes": [
         "slices.hierarchy"
       ]
+    },
+    {
+      "id": "stdlib.prelude.before_eof.functions.exp",
+      "name": "exp",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Computes e raised to the power of a number",
+      "fullDescription": "Computes e raised to the power of a number.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "DOUBLE",
+      "returnDescription": "The result of e^input, or NULL if input is NULL.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "input",
+          "type": "DOUBLE",
+          "description": "The exponent value."
+        }
+      ],
+      "transitiveIncludes": []
     },
     {
       "id": "stdlib.prelude.after_eof.events.expected_frame_timeline_slice",
@@ -26149,6 +26470,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "std.metasql.unparenthesize"
       ]
@@ -26191,6 +26513,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "std.metasql.unparenthesize"
       ]
@@ -26266,6 +26589,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "std.metasql.unparenthesize"
       ]
@@ -26318,6 +26642,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "std.metasql.unparenthesize"
       ]
@@ -26361,6 +26686,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "std.metasql.unparenthesize"
@@ -26502,6 +26828,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "std.metasql.unparenthesize"
@@ -26538,6 +26865,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "std.metasql.unparenthesize"
@@ -26816,6 +27144,39 @@
       "transitiveIncludes": [
         "time.conversion"
       ]
+    },
+    {
+      "id": "stdlib.linux.perf.counters.linux_perf_counter_for_sample",
+      "name": "linux_perf_counter_for_sample",
+      "type": "function",
+      "category": "linux",
+      "subcategory": "perf.counters",
+      "module": "linux.perf.counters",
+      "package": "linux",
+      "description": "Returns the counter value for a perf sample given the sample ID and counter name",
+      "fullDescription": "Returns the counter value for a perf sample given the sample ID and counter name.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE linux.perf.counters;",
+      "moduleIncludes": [],
+      "returnType": "DOUBLE",
+      "returnDescription": "The counter value, or NULL if not found.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/linux/perf/counters.sql",
+      "params": [
+        {
+          "name": "sample_id",
+          "type": "JOINID(perf_sample.id)",
+          "description": "The ID of the perf sample.",
+          "table": "perf_sample",
+          "column": "id"
+        },
+        {
+          "name": "counter_name",
+          "type": "STRING",
+          "description": "The name of the counter (e.g., 'cpu-clock', 'instructions')."
+        }
+      ],
+      "transitiveIncludes": []
     },
     {
       "id": "stdlib.linux.perf.counters.linux_perf_sample_with_counters",
@@ -27192,6 +27553,32 @@
           "description": "The id of the IRQ.",
           "table": "slice",
           "column": "id"
+        }
+      ],
+      "transitiveIncludes": []
+    },
+    {
+      "id": "stdlib.prelude.before_eof.functions.ln",
+      "name": "ln",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Computes the natural logarithm of a number",
+      "fullDescription": "Computes the natural logarithm of a number.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "DOUBLE",
+      "returnDescription": "The natural logarithm, or NULL if input is non-positive or NULL.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "input",
+          "type": "DOUBLE",
+          "description": "The input value."
         }
       ],
       "transitiveIncludes": []
@@ -28081,6 +28468,8 @@
       ],
       "include": "INCLUDE PERFETTO MODULE pixel.camera;",
       "moduleIncludes": [
+        "counters.global_tracks",
+        "linux.memory.process",
         "slices.with_context"
       ],
       "dataCheckSql": "SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB 'cam*_*:* (frame *)' LIMIT 1) AS has_data",
@@ -28144,6 +28533,75 @@
         }
       ],
       "transitiveIncludes": [
+        "counters.global_tracks",
+        "linux.memory.general",
+        "linux.memory.process",
+        "slices.with_context"
+      ]
+    },
+    {
+      "id": "stdlib.pixel.camera.pixel_camera_memory_span",
+      "name": "pixel_camera_memory_span",
+      "type": "table",
+      "category": "pixel",
+      "subcategory": "camera",
+      "module": "pixel.camera",
+      "package": "pixel",
+      "description": "Process memory and DMA heap usage timeline for Pixel Camera processes (GCA, HAL, CameraServer)",
+      "fullDescription": "Process memory and DMA heap usage timeline for Pixel Camera processes (GCA, HAL, CameraServer).",
+      "visibility": "public",
+      "tags": [
+        "android"
+      ],
+      "include": "INCLUDE PERFETTO MODULE pixel.camera;",
+      "moduleIncludes": [
+        "counters.global_tracks",
+        "linux.memory.process",
+        "slices.with_context"
+      ],
+      "dataCheckSql": "SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB 'cam*_*:* (frame *)' LIMIT 1) AS has_data",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/pixel/camera.sql",
+      "columns": [
+        {
+          "name": "ts",
+          "type": "TIMESTAMP",
+          "description": "Timestamp."
+        },
+        {
+          "name": "dur",
+          "type": "DURATION",
+          "description": "Duration of the span."
+        },
+        {
+          "name": "gca_rss",
+          "type": "LONG",
+          "description": "RSS of GoogleCamera process."
+        },
+        {
+          "name": "hal_rss",
+          "type": "LONG",
+          "description": "RSS of Camera HAL process (camera.provider)."
+        },
+        {
+          "name": "cameraserver_rss",
+          "type": "LONG",
+          "description": "RSS of CameraServer process."
+        },
+        {
+          "name": "dma",
+          "type": "LONG",
+          "description": "Value of DMA heap counters."
+        },
+        {
+          "name": "rss_and_dma",
+          "type": "LONG",
+          "description": "Sum of all camera RSS and DMA heap memory values."
+        }
+      ],
+      "transitiveIncludes": [
+        "counters.global_tracks",
+        "linux.memory.general",
+        "linux.memory.process",
         "slices.with_context"
       ]
     },
@@ -28837,6 +29295,99 @@
       ]
     },
     {
+      "id": "stdlib.prelude.before_eof.functions.regexp_extract",
+      "name": "regexp_extract",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Extracts the first match of a regular expression from a string",
+      "fullDescription": "Extracts the first match of a regular expression from a string.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "STRING",
+      "returnDescription": "The matched substring, or NULL if no match.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "input",
+          "type": "STRING",
+          "description": "The input string to match against."
+        },
+        {
+          "name": "regex",
+          "type": "STRING",
+          "description": "The regular expression pattern."
+        }
+      ],
+      "transitiveIncludes": []
+    },
+    {
+      "id": "stdlib.prelude.before_eof.functions.regexp_replace_simple",
+      "name": "regexp_replace_simple",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Replaces all occurrences of a regular expression with a constant replacement string",
+      "fullDescription": "Replaces all occurrences of a regular expression with a constant replacement string. Note that there is no way to substitute matching groups into the replacement, and all matching is case-sensitive.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "STRING",
+      "returnDescription": "The result.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "input",
+          "type": "STRING",
+          "description": "The input string to match against."
+        },
+        {
+          "name": "regex",
+          "type": "STRING",
+          "description": "The matching regexp."
+        },
+        {
+          "name": "replacement",
+          "type": "STRING",
+          "description": "The replacement string to substitute in."
+        }
+      ],
+      "transitiveIncludes": []
+    },
+    {
+      "id": "stdlib.prelude.before_eof.functions.reverse",
+      "name": "reverse",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Reverses a string",
+      "fullDescription": "Reverses a string.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "STRING",
+      "returnDescription": "The reversed string.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "input",
+          "type": "STRING",
+          "description": "The string to reverse."
+        }
+      ],
+      "transitiveIncludes": []
+    },
+    {
       "id": "stdlib.prelude.after_eof.cpu_scheduling.sched",
       "name": "sched",
       "type": "view",
@@ -28946,6 +29497,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "std.metasql.unparenthesize"
@@ -29152,6 +29704,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "std.metasql.unparenthesize"
@@ -29568,6 +30121,7 @@
       "transitiveIncludes": [
         "android.monitor_contention",
         "android.suspend",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "std.metasql.unparenthesize"
@@ -30096,6 +30650,32 @@
       "transitiveIncludes": [
         "prelude.after_eof.casts"
       ]
+    },
+    {
+      "id": "stdlib.prelude.before_eof.functions.sqrt",
+      "name": "sqrt",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Computes the square root of a number",
+      "fullDescription": "Computes the square root of a number.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "DOUBLE",
+      "returnDescription": "The square root, or NULL if input is NULL.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "input",
+          "type": "DOUBLE",
+          "description": "The input value."
+        }
+      ],
+      "transitiveIncludes": []
     },
     {
       "id": "stdlib.prelude.after_eof.views.stack_profile_callsite",
@@ -31814,6 +32394,84 @@
       "transitiveIncludes": []
     },
     {
+      "id": "stdlib.prelude.before_eof.functions.to_monotonic",
+      "name": "to_monotonic",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Converts a trace timestamp to monotonic clock time",
+      "fullDescription": "Converts a trace timestamp to monotonic clock time.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "LONG",
+      "returnDescription": "The monotonic clock timestamp, or NULL if conversion fails.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "ts",
+          "type": "LONG",
+          "description": "The trace timestamp (in nanoseconds)."
+        }
+      ],
+      "transitiveIncludes": []
+    },
+    {
+      "id": "stdlib.prelude.before_eof.functions.to_realtime",
+      "name": "to_realtime",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Converts a trace timestamp to realtime clock time",
+      "fullDescription": "Converts a trace timestamp to realtime clock time.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "LONG",
+      "returnDescription": "The realtime clock timestamp, or NULL if conversion fails.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "ts",
+          "type": "LONG",
+          "description": "The trace timestamp (in nanoseconds)."
+        }
+      ],
+      "transitiveIncludes": []
+    },
+    {
+      "id": "stdlib.prelude.before_eof.functions.to_timecode",
+      "name": "to_timecode",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Converts a trace timestamp to a human-readable timecode (HH:MM:SS mmm uuu nnn)",
+      "fullDescription": "Converts a trace timestamp to a human-readable timecode (HH:MM:SS mmm uuu nnn).",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "STRING",
+      "returnDescription": "The formatted timecode string.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "ts",
+          "type": "LONG",
+          "description": "The trace timestamp (in nanoseconds)."
+        }
+      ],
+      "transitiveIncludes": []
+    },
+    {
       "id": "stdlib.prelude.after_eof.core.trace_bounds",
       "name": "trace_bounds",
       "type": "view",
@@ -32117,6 +32775,32 @@
           "name": "tree_table",
           "type": "TableOrSubquery",
           "description": "A table/view/subquery corresponding to a tree which should be partitioned. This table must have the columns \"id\", \"parent_id\" and \"group_key\". Note: the columns must contain uint32 similar to ids in trace processor tables (i.e. the values should be relatively dense and close to zero). The implementation makes assumptions on this for performance reasons and, if this criteria is not, can lead to enormous amounts of memory being allocated."
+        }
+      ],
+      "transitiveIncludes": []
+    },
+    {
+      "id": "stdlib.prelude.before_eof.functions.unhex",
+      "name": "unhex",
+      "type": "function",
+      "category": "prelude",
+      "subcategory": "before_eof.functions",
+      "module": "prelude.before_eof.functions",
+      "package": "prelude",
+      "description": "Converts a hex string (with optional 0x prefix) to an integer",
+      "fullDescription": "Converts a hex string (with optional 0x prefix) to an integer.",
+      "visibility": "public",
+      "tags": [],
+      "include": "INCLUDE PERFETTO MODULE prelude.before_eof.functions;",
+      "moduleIncludes": [],
+      "returnType": "LONG",
+      "returnDescription": "The integer value.",
+      "sourcePath": "perfetto/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
+      "params": [
+        {
+          "name": "input",
+          "type": "STRING",
+          "description": "The hex string to convert."
         }
       ],
       "transitiveIncludes": []
@@ -32500,6 +33184,7 @@
         "android.suspend",
         "android.user_list",
         "counters.intervals",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "linux.cpu.frequency",
@@ -32576,6 +33261,7 @@
         "android.suspend",
         "android.user_list",
         "counters.intervals",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "linux.cpu.frequency",
@@ -32652,6 +33338,7 @@
         "android.suspend",
         "android.user_list",
         "counters.intervals",
+        "intervals.fill_gaps",
         "intervals.intersect",
         "intervals.overlap",
         "linux.cpu.frequency",
@@ -33057,6 +33744,7 @@
     }
   ],
   "symbolToModule": {
+    "abs_time_str": "prelude.before_eof.functions",
     "actual_frame_timeline_slice": "prelude.after_eof.events",
     "ancestor_slice_by_stack": "slices.stack",
     "android_aflags": "android.aflags",
@@ -33162,6 +33850,7 @@
     "android_oom_adj_intervals": "android.oom_adjuster",
     "android_oom_adj_score_to_bucket_name": "android.oom_adjuster",
     "android_oom_adj_score_to_detailed_bucket_name": "android.oom_adjuster",
+    "android_package_lookup": "android.package_lookup",
     "android_power_rails_counters": "android.power_rails",
     "android_power_rails_metadata": "android.power_rails",
     "android_process_memory_intervals": "android.memory.memory_breakdown",
@@ -33206,6 +33895,8 @@
     "android_winscope_transform": "android.winscope.rect",
     "appleos_instruments_samples_summary_tree": "appleos.instruments.samples",
     "args": "prelude.after_eof.views",
+    "base64_decode": "prelude.before_eof.functions",
+    "base64_encode": "prelude.before_eof.functions",
     "cast_double": "prelude.after_eof.casts",
     "cast_int": "prelude.after_eof.casts",
     "cast_string": "prelude.after_eof.casts",
@@ -33328,7 +34019,9 @@
     "cpu_utilization_in_interval": "linux.cpu.utilization.system",
     "cpu_utilization_per_period": "linux.cpu.utilization.system",
     "cpu_utilization_per_second": "linux.cpu.utilization.system",
+    "demangle": "prelude.before_eof.functions",
     "descendant_slice_by_stack": "slices.stack",
+    "exp": "prelude.before_eof.functions",
     "expected_frame_timeline_slice": "prelude.after_eof.events",
     "experimental_missing_chrome_processes": "prelude.after_eof.views",
     "export_to_firefox_profile": "export.to_firefox_profile",
@@ -33372,10 +34065,12 @@
     "linux_irqs": "linux.irqs",
     "linux_kernel_threads": "linux.threads",
     "linux_per_cpu_idle_time_in_state_counters": "linux.cpu.idle_time_in_state",
+    "linux_perf_counter_for_sample": "linux.perf.counters",
     "linux_perf_sample_with_counters": "linux.perf.counters",
     "linux_perf_samples_summary_tree": "linux.perf.samples",
     "linux_perf_spe_record": "linux.perf.spe",
     "linux_soft_irqs": "linux.irqs",
+    "ln": "prelude.before_eof.functions",
     "machine": "prelude.after_eof.views",
     "memory_oom_score_with_rss_and_swap_per_process": "android.memory.process",
     "memory_rss_and_swap_per_process": "linux.memory.process",
@@ -33390,6 +34085,7 @@
     "perf_sample": "prelude.before_eof.views",
     "perf_session": "prelude.after_eof.views",
     "pixel_camera_frames": "pixel.camera",
+    "pixel_camera_memory_span": "pixel.camera",
     "pkvm_hypervisor_events": "pkvm.hypervisor",
     "process": "prelude.after_eof.views",
     "process_counter_track": "prelude.after_eof.counters",
@@ -33399,6 +34095,9 @@
     "profiler_smaps": "prelude.after_eof.views",
     "protolog": "prelude.after_eof.views",
     "raw": "prelude.after_eof.events",
+    "regexp_extract": "prelude.before_eof.functions",
+    "regexp_replace_simple": "prelude.before_eof.functions",
+    "reverse": "prelude.before_eof.functions",
     "sched": "prelude.after_eof.cpu_scheduling",
     "sched_active_cpu_count": "sched.thread_level_parallelism",
     "sched_latency_for_running_interval": "sched.latency",
@@ -33420,6 +34119,7 @@
     "slice_with_stack_id": "slices.stack",
     "slices": "prelude.after_eof.views",
     "spurious_sched_wakeup": "prelude.after_eof.views",
+    "sqrt": "prelude.before_eof.functions",
     "stack_profile_callsite": "prelude.after_eof.views",
     "stack_profile_frame": "prelude.after_eof.views",
     "stack_profile_mapping": "prelude.after_eof.views",
@@ -33451,6 +34151,9 @@
     "time_to_ns": "time.conversion",
     "time_to_s": "time.conversion",
     "time_to_us": "time.conversion",
+    "to_monotonic": "prelude.before_eof.functions",
+    "to_realtime": "prelude.before_eof.functions",
+    "to_timecode": "prelude.before_eof.functions",
     "trace_bounds": "prelude.after_eof.core",
     "trace_dur": "prelude.before_eof.trace_bounds",
     "trace_end": "prelude.before_eof.trace_bounds",
@@ -33460,6 +34163,7 @@
     "traced_trigger_clone_flush_latency": "traced.stats",
     "track": "prelude.after_eof.tracks",
     "tree_structural_partition_by_group": "graphs.partition",
+    "unhex": "prelude.before_eof.functions",
     "v8_isolate": "v8.jit",
     "v8_js_function": "v8.jit",
     "v8_js_script": "v8.jit",

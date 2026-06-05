@@ -210,13 +210,13 @@ download_trace_processor_prebuilt() {
   plat="${os}-${arch}"
 
   case "$plat" in
-    linux-amd64) sha="${PERFETTO_SHELL_SHA256_LINUX_AMD64:-a7aa1f738bbe2926a70f0829d00837f5720be8cafe26de78f962094fa24a3da4}" ;;
-    linux-arm64) sha="${PERFETTO_SHELL_SHA256_LINUX_ARM64:-53af6216259df603115f1eefa94f034eef9c29cf851df15302ad29160334ca81}" ;;
-    mac-amd64)   sha="${PERFETTO_SHELL_SHA256_MAC_AMD64:-a15360712875344d8bb8e4c461cd7ce9ec250f71a76f89e6ae327c5185eb4855}" ;;
-    mac-arm64)   sha="${PERFETTO_SHELL_SHA256_MAC_ARM64:-23638faac4ca695e86039a01fade05ff4a38ffa89672afc7a4e4077318603507}" ;;
+    linux-amd64) sha="${PERFETTO_SHELL_SHA256_LINUX_AMD64:-2ef3c927d0eabaa246e383b221217158c189ee2c3b638de497ce913e268a34e7}" ;;
+    linux-arm64) sha="${PERFETTO_SHELL_SHA256_LINUX_ARM64:-996eda7c304be9fe4c859b96fbe4decc1cb406281ab4db077f0c762385a6c272}" ;;
+    mac-amd64)   sha="${PERFETTO_SHELL_SHA256_MAC_AMD64:-ca38354e77f5afe3d432576a350ce8000a9b394c5d13a2b70345a53d7a453ab5}" ;;
+    mac-arm64)   sha="${PERFETTO_SHELL_SHA256_MAC_ARM64:-21a68743627c3435146f8c241f767761ed9c161341a2ad2dfef47e50aa7160d9}" ;;
   esac
 
-  PERFETTO_VERSION="${PERFETTO_VERSION:-v54.0}"
+  PERFETTO_VERSION="${PERFETTO_VERSION:-v56.0}"
   url_base="${TRACE_PROCESSOR_DOWNLOAD_BASE:-${PERFETTO_LUCI_URL_BASE:-https://commondatastorage.googleapis.com/perfetto-luci-artifacts}}"
   url="${TRACE_PROCESSOR_DOWNLOAD_URL:-${url_base%/}/${PERFETTO_VERSION}/${plat}/trace_processor_shell}"
   tmp=$(mktemp -t trace_processor_shell.XXXXXX)

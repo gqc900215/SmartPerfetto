@@ -106,7 +106,7 @@ plan_template:
 4. **外部诊断是补充证据**：ApplicationExitInfo、ProfilingManager/ProfilingTrigger 产物、线上 OOM/KOOM、heap dump、APM 指标可以补上下文，但必须标明来源、版本/API 边界、record/artifact 时间、进程身份和与当前 trace 的对应关系。需要机制背景时调用 `lookup_knowledge("observability-diagnostics")`。
 5. **缺失证据要进入结论**：trace 没有 heap graph、dmabuf、smaps、ApplicationExitInfo 或长窗口趋势时，只能输出候选和下一步采集建议。
 6. **Heap Graph 泄漏只按证据分级**：`reachable=1` 只能说明 sample 时仍可达；只有可达对象与 sample 前生命周期（如 `onDestroy` / `onDestroyView`）对齐时，才能写成高置信泄漏候选。同类 Activity/Fragment 多实例只能写低置信候选，即使最近生命周期是 active/inactive，也不能升级成已泄漏。
-7. **引用链从候选对象出发**：查 reference holder 时先收敛到 suspect object ids，再用 `heap_graph_reference.owned_id` 找持有者；引用来源需排除 Perfetto `_excluded_refs` 覆盖的 weak/soft/phantom/finalizer referent 边，不要对 heap graph 全量对象/引用做宽 JOIN 后直接下结论。
+7. **引用链从候选对象出发**：查 reference holder 时先收敛到 suspect object ids，再用 `heap_graph_reference.owned_id` 找持有者；引用来源需排除 Perfetto `_excluded_refs` 覆盖的 weak/phantom/finalizer referent 边；v56 的 `_excluded_refs` 不再排除 soft reference，不要自行把 soft referent 当作已过滤边，也不要对 heap graph 全量对象/引用做宽 JOIN 后直接下结论。
 8. **RSS/Anon/Swap 是趋势辅证**：RSS 增长、单点跳跃、Peak/Avg 异常、Anon+Swap 占比能说明内存压力或增长形态，但不能单独证明 Java 泄漏或 PSS 问题。
 9. **Profiler 只能回答各自能看见的问题**：Memory counters/LMK 给系统和进程趋势，ART heap dump 给 Java/Kotlin 引用保留图但不给分配调用栈，heapprofd 给 native malloc/free 族调用栈和观测窗口内分配/释放，不能把其中一个证据源升级成全量内存真相。
 10. **采集窗口是结论边界**：heapprofd 不是 retroactive，只能看到 profiler 启动后的分配；Java heap dump 是 sample 点引用图；process stats 轮询可能漏掉很短的 RSS 峰值，`rss_stat`/`mm_event`/LMK 事件更适合捕获短时压力。缺失这些证据时必须转成具体采集建议。

@@ -219,6 +219,11 @@ describe('sqlIncludeInjector - completeness gate', () => {
     'invoke_skill', 'list_skills', 'query_perfetto_source',
     'cpufreq',
     'thread_name', 'process_name',
+    'unknown', 'awake',
+    'android_frame_timeline_metric_per_process',
+    'weighted_missed_frames',
+    'weighted_missed_app_frames',
+    'weighted_missed_sf_frames',
   ]);
 
   const extractAdvertisedNames = () => {

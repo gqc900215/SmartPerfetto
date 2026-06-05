@@ -699,6 +699,7 @@ data_sources {
 
 ### 常见缺失原因
 - `android_screen_state` 依赖 `power` atrace 或 `android.polled_state`
+- v56+ stdlib 会用 `unknown`/`awake` 兜底补齐 trace 边界缺口；这些兜底行只能说明采集覆盖不足，不能当作“设备一直 awake / 状态没有变化”的强证据
 - 某些自动化测试环境屏蔽了设备状态事件
 
 ---

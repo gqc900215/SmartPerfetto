@@ -432,4 +432,4 @@ output:
     - name: leak_candidates
       description: "Reachable Activity/Fragment heap objects classified against sample-time lifecycle evidence"
     - name: reference_holders
-      description: "Small-scope incoming retaining references for suspect heap objects, excluding weak/soft/phantom/finalizer referent edges"
+      description: "Small-scope incoming retaining references for suspect heap objects, excluding Perfetto _excluded_refs referent edges (weak/phantom/finalizer in v56; soft reference edges are not filtered by this stdlib helper)"

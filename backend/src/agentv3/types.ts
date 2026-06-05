@@ -55,6 +55,14 @@ export interface SqlSchemaEntry {
   tags?: string[];
   /** Source SQL file path relative to the repo root, when known. */
   sourcePath?: string;
+  /** Legacy/generated source SQL file path relative to its source root, when known. */
+  filePath?: string;
+  /** SQL module or metric dependencies required before this entity is queryable. */
+  dependencies?: string[];
+  /** Metric SQL path that must be materialized before querying this metric-created entity. */
+  requiredMetric?: string;
+  /** Ready-to-run setup statement for metric-created entities. */
+  setupSql?: string;
   /** Column definitions for tables/views (when available in the schema index) */
   columns?: Array<{ name: string; type?: string; description?: string }>;
   /** Parameter definitions for functions (when available in the schema index) */
