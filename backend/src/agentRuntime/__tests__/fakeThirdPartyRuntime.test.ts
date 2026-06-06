@@ -70,7 +70,6 @@ describe('fake third-party runtime contract', () => {
       source: 'default',
     };
 
-    expect(registry.getCapabilities(fakeKind)).toBe(fakeCapabilities);
     expect(registry.createOrchestrator(fakeKind, {
       traceProcessorService,
       selection,

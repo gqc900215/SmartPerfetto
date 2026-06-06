@@ -2,12 +2,16 @@
 // Copyright (C) 2024-2026 Gracker (Chris)
 // This file is part of SmartPerfetto. See LICENSE for details.
 
+import fs from 'fs';
+import path from 'path';
 import { describe, expect, it, jest } from '@jest/globals';
 import type { IOrchestrator } from '../../agent/core/orchestratorTypes';
 import {
+  RuntimeRegistry,
   createRuntimeRegistry,
-  productionRuntimeRegistry,
+  createRuntimeRegistryForSelection,
   type RuntimeEngineDefinition,
+  type RuntimeFactoryInput,
 } from '../runtimeRegistry';
 import {
   PRODUCTION_RUNTIME_DESCRIPTORS,
@@ -19,6 +23,10 @@ import {
 import {
   type EngineCapabilities,
 } from '../runtimeDescriptorTypes';
+import {
+  EXPERIMENTAL_OPENCODE_RUNTIME_KIND,
+  EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND,
+} from '../runtimeKinds';
 
 function fakeCapabilities(kind = 'fake-runtime'): EngineCapabilities {
   return {
@@ -30,6 +38,13 @@ function fakeCapabilities(kind = 'fake-runtime'): EngineCapabilities {
 }
 
 describe('runtime registry', () => {
+  it('keeps registry instance API limited to orchestrator creation', () => {
+    expect(Object.getOwnPropertyNames(RuntimeRegistry.prototype).sort()).toEqual([
+      'constructor',
+      'createOrchestrator',
+    ]);
+  });
+
   it('derives public production runtimes from descriptors', () => {
     const descriptorKinds = PRODUCTION_RUNTIME_DESCRIPTORS.map(descriptor => descriptor.kind);
     const expectedKinds = [
@@ -41,7 +56,6 @@ describe('runtime registry', () => {
 
     expect(descriptorKinds).toEqual(expectedKinds);
     expect(listProductionRuntimeKinds()).toEqual(expectedKinds);
-    expect(productionRuntimeRegistry.listRuntimeKinds()).toEqual(expectedKinds);
     expect(isProductionAgentRuntimeKind('claude-agent-sdk')).toBe(true);
     expect(isProductionAgentRuntimeKind('openai-agents-sdk')).toBe(true);
     expect(isProductionAgentRuntimeKind('pi-agent-core')).toBe(true);
@@ -50,10 +64,10 @@ describe('runtime registry', () => {
   });
 
   it('exposes slim runtime capabilities as descriptor truth', () => {
-    const claude = productionRuntimeRegistry.getCapabilities('claude-agent-sdk');
-    const openai = productionRuntimeRegistry.getCapabilities('openai-agents-sdk');
-    const pi = productionRuntimeRegistry.getCapabilities('pi-agent-core');
-    const opencode = productionRuntimeRegistry.getCapabilities('opencode');
+    const claude = getProductionEngineCapabilities('claude-agent-sdk');
+    const openai = getProductionEngineCapabilities('openai-agents-sdk');
+    const pi = getProductionEngineCapabilities('pi-agent-core');
+    const opencode = getProductionEngineCapabilities('opencode');
 
     expect(claude).toBe(getProductionEngineCapabilities('claude-agent-sdk'));
     expect(openai).toBe(getProductionEngineCapabilities('openai-agents-sdk'));
@@ -103,9 +117,10 @@ describe('runtime registry', () => {
 
   it('requires every production runtime to expose session-scoped cancellation', () => {
     const traceProcessorService = { kind: 'trace-processor' } as any;
+    const registry = createRuntimeRegistry(PRODUCTION_RUNTIME_DESCRIPTORS);
 
-    for (const kind of productionRuntimeRegistry.listRuntimeKinds()) {
-      const orchestrator = productionRuntimeRegistry.createOrchestrator(kind, {
+    for (const kind of listProductionRuntimeKinds()) {
+      const orchestrator = registry.createOrchestrator(kind, {
         traceProcessorService,
         selection: { kind, source: 'default' },
       });
@@ -143,11 +158,16 @@ describe('runtime registry', () => {
       createOrchestrator: jest.fn(() => ({}) as IOrchestrator),
     };
     const registry = createRuntimeRegistry([definition]);
+    const traceProcessorService = { kind: 'trace-processor' } as any;
+    const selection = { kind: 'missing-runtime', source: 'default' as const };
 
-    expect(() => registry.require('missing-runtime')).toThrow(
+    expect(() => registry.createOrchestrator('missing-runtime', {
+      traceProcessorService,
+      selection,
+    })).toThrow(
       'Unsupported agent runtime: missing-runtime',
     );
-    expect(() => registry.register(definition)).toThrow(
+    expect(() => createRuntimeRegistry([definition, definition])).toThrow(
       'Runtime already registered: fake-runtime',
     );
     expect(() => createRuntimeRegistry([{
@@ -156,5 +176,113 @@ describe('runtime registry', () => {
     }])).toThrow(
       'Runtime registration mismatch: fake-runtime-alias != fake-runtime',
     );
+  });
+
+  it('registers experimental Pi runtime directly without definition indirection', () => {
+    jest.isolateModules(() => {
+      const orchestrator = { analyze: jest.fn(), reset: jest.fn() } as unknown as IOrchestrator;
+      const createPiAgentCoreRuntime = jest.fn((_input: RuntimeFactoryInput) => orchestrator);
+      const getPiAgentCoreEngineCapabilities = jest.fn((kind: string) => fakeCapabilities(kind));
+      const createPiAgentCoreRuntimeDefinition = jest.fn(() => {
+        throw new Error('definition factory should not be called');
+      });
+
+      jest.doMock('../piAgentCoreRuntime', () => ({
+        createPiAgentCoreRuntime,
+        createPiAgentCoreRuntimeDefinition,
+        getPiAgentCoreEngineCapabilities,
+      }));
+
+      const registryModule = require('../runtimeRegistry') as typeof import('../runtimeRegistry');
+      const registry = registryModule.createRuntimeRegistryForSelection(
+        EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND,
+      );
+      const input = {
+        traceProcessorService: { kind: 'trace-processor' } as any,
+        selection: {
+          kind: EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND,
+          source: 'env' as const,
+        },
+      };
+
+      expect(registry.createOrchestrator(EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND, input))
+        .toBe(orchestrator);
+      expect(createPiAgentCoreRuntime).toHaveBeenCalledWith(input);
+      expect(getPiAgentCoreEngineCapabilities)
+        .toHaveBeenCalledWith(EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND);
+      expect(createPiAgentCoreRuntimeDefinition).not.toHaveBeenCalled();
+
+      jest.dontMock('../piAgentCoreRuntime');
+    });
+  });
+
+  it('registers experimental OpenCode runtime directly without definition indirection', () => {
+    jest.isolateModules(() => {
+      const orchestrator = { analyze: jest.fn(), reset: jest.fn() } as unknown as IOrchestrator;
+      const OpenCodeRuntime = jest.fn((_input: RuntimeFactoryInput) => orchestrator);
+      const getOpenCodeEngineCapabilities = jest.fn((kind: string) => fakeCapabilities(kind));
+      const createOpenCodeRuntimeDefinition = jest.fn(() => {
+        throw new Error('definition factory should not be called');
+      });
+
+      jest.doMock('../openCodeRuntime', () => ({
+        OpenCodeRuntime,
+        createOpenCodeRuntimeDefinition,
+        getOpenCodeEngineCapabilities,
+      }));
+
+      const registryModule = require('../runtimeRegistry') as typeof import('../runtimeRegistry');
+      const registry = registryModule.createRuntimeRegistryForSelection(
+        EXPERIMENTAL_OPENCODE_RUNTIME_KIND,
+      );
+      const input = {
+        traceProcessorService: { kind: 'trace-processor' } as any,
+        selection: {
+          kind: EXPERIMENTAL_OPENCODE_RUNTIME_KIND,
+          source: 'env' as const,
+        },
+      };
+
+      expect(registry.createOrchestrator(EXPERIMENTAL_OPENCODE_RUNTIME_KIND, input))
+        .toBe(orchestrator);
+      expect(OpenCodeRuntime).toHaveBeenCalledWith(input);
+      expect(getOpenCodeEngineCapabilities)
+        .toHaveBeenCalledWith(EXPERIMENTAL_OPENCODE_RUNTIME_KIND);
+      expect(createOpenCodeRuntimeDefinition).not.toHaveBeenCalled();
+
+      jest.dontMock('../openCodeRuntime');
+    });
+  });
+
+  it('keeps direct registry construction out of non-test runtime code', () => {
+    const srcRoot = path.resolve(__dirname, '..', '..');
+    const offenders: string[] = [];
+
+    function visit(dir: string): void {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const absolute = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === '__tests__') continue;
+          visit(absolute);
+          continue;
+        }
+        if (!entry.isFile() || !absolute.endsWith('.ts')) continue;
+        if (absolute.endsWith(path.join('agentRuntime', 'runtimeRegistry.ts'))) continue;
+
+        const text = fs.readFileSync(absolute, 'utf8');
+        if (
+          /\bcreateRuntimeRegistry\s*\(/.test(text) ||
+          /\bnew\s+RuntimeRegistry\b/.test(text) ||
+          /\bproductionRuntimeRegistry\b/.test(text) ||
+          /\bcreateProductionRuntimeRegistry\b/.test(text)
+        ) {
+          offenders.push(path.relative(srcRoot, absolute));
+        }
+      }
+    }
+
+    visit(srcRoot);
+
+    expect(offenders).toEqual([]);
   });
 });

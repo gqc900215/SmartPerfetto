@@ -7,7 +7,6 @@ import {
   PRODUCTION_RUNTIME_DESCRIPTORS,
 } from './runtimeDescriptors';
 import type {
-  EngineCapabilities,
   RuntimeEngineDefinition,
   RuntimeFactoryInput,
 } from './runtimeDescriptorTypes';
@@ -17,53 +16,48 @@ import {
 } from './runtimeKinds';
 export type { RuntimeEngineDefinition, RuntimeFactoryInput } from './runtimeDescriptorTypes';
 
-export class RuntimeRegistry {
-  private readonly definitions = new Map<string, RuntimeEngineDefinition>();
-
-  constructor(definitions: readonly RuntimeEngineDefinition[] = []) {
-    for (const definition of definitions) {
-      this.register(definition);
-    }
+function assertRuntimeDefinition(definition: RuntimeEngineDefinition): void {
+  if (definition.kind !== definition.capabilities.kind) {
+    throw new Error(
+      `Runtime registration mismatch: ${definition.kind} != ${definition.capabilities.kind}`,
+    );
   }
+}
 
-  register(definition: RuntimeEngineDefinition): void {
-    if (definition.kind !== definition.capabilities.kind) {
-      throw new Error(
-        `Runtime registration mismatch: ${definition.kind} != ${definition.capabilities.kind}`,
-      );
-    }
-    if (this.definitions.has(definition.kind)) {
+function createDefinitionMap(
+  definitions: readonly RuntimeEngineDefinition[],
+): Map<string, RuntimeEngineDefinition> {
+  const byKind = new Map<string, RuntimeEngineDefinition>();
+  for (const definition of definitions) {
+    assertRuntimeDefinition(definition);
+    if (byKind.has(definition.kind)) {
       throw new Error(`Runtime already registered: ${definition.kind}`);
     }
-    this.definitions.set(definition.kind, definition);
+    byKind.set(definition.kind, definition);
   }
+  return byKind;
+}
 
-  has(kind: string): boolean {
-    return this.definitions.has(kind);
+function requireDefinition(
+  definitions: ReadonlyMap<string, RuntimeEngineDefinition>,
+  kind: string,
+): RuntimeEngineDefinition {
+  const definition = definitions.get(kind);
+  if (!definition) {
+    throw new Error(`Unsupported agent runtime: ${kind}`);
   }
+  return definition;
+}
 
-  get(kind: string): RuntimeEngineDefinition | undefined {
-    return this.definitions.get(kind);
-  }
+export class RuntimeRegistry {
+  private readonly definitions: ReadonlyMap<string, RuntimeEngineDefinition>;
 
-  require(kind: string): RuntimeEngineDefinition {
-    const definition = this.get(kind);
-    if (!definition) {
-      throw new Error(`Unsupported agent runtime: ${kind}`);
-    }
-    return definition;
-  }
-
-  getCapabilities(kind: string): EngineCapabilities {
-    return this.require(kind).capabilities;
+  constructor(definitions: readonly RuntimeEngineDefinition[] = []) {
+    this.definitions = createDefinitionMap(definitions);
   }
 
   createOrchestrator(kind: string, input: RuntimeFactoryInput): IOrchestrator {
-    return this.require(kind).createOrchestrator(input);
-  }
-
-  listRuntimeKinds(): string[] {
-    return Array.from(this.definitions.keys());
+    return requireDefinition(this.definitions, kind).createOrchestrator(input);
   }
 }
 
@@ -75,27 +69,37 @@ export function createRuntimeRegistry(
   return new RuntimeRegistry(definitions);
 }
 
-export function createProductionRuntimeRegistry(): RuntimeRegistry {
-  return createRuntimeRegistry(productionRuntimeDefinitions);
-}
-
-export const productionRuntimeRegistry = createProductionRuntimeRegistry();
+const productionRuntimeRegistry = createRuntimeRegistry(productionRuntimeDefinitions);
 
 export function createRuntimeRegistryForSelection(kind: string): RuntimeRegistry {
   if (kind === EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { createPiAgentCoreRuntimeDefinition } = require('./piAgentCoreRuntime') as typeof import('./piAgentCoreRuntime');
+    const {
+      createPiAgentCoreRuntime,
+      getPiAgentCoreEngineCapabilities,
+    } = require('./piAgentCoreRuntime') as typeof import('./piAgentCoreRuntime');
     return createRuntimeRegistry([
       ...productionRuntimeDefinitions,
-      createPiAgentCoreRuntimeDefinition(EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND),
+      {
+        kind: EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND,
+        capabilities: getPiAgentCoreEngineCapabilities(EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND),
+        createOrchestrator: input => createPiAgentCoreRuntime(input),
+      },
     ]);
   }
   if (kind === EXPERIMENTAL_OPENCODE_RUNTIME_KIND) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { createOpenCodeRuntimeDefinition } = require('./openCodeRuntime') as typeof import('./openCodeRuntime');
+    const {
+      OpenCodeRuntime,
+      getOpenCodeEngineCapabilities,
+    } = require('./openCodeRuntime') as typeof import('./openCodeRuntime');
     return createRuntimeRegistry([
       ...productionRuntimeDefinitions,
-      createOpenCodeRuntimeDefinition(EXPERIMENTAL_OPENCODE_RUNTIME_KIND),
+      {
+        kind: EXPERIMENTAL_OPENCODE_RUNTIME_KIND,
+        capabilities: getOpenCodeEngineCapabilities(EXPERIMENTAL_OPENCODE_RUNTIME_KIND),
+        createOrchestrator: input => new OpenCodeRuntime(input),
+      },
     ]);
   }
   return productionRuntimeRegistry;

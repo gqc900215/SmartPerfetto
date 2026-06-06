@@ -10,7 +10,10 @@ import type {
   IOrchestrator,
 } from '../../agent/core/orchestratorTypes';
 import { createAnalysisHarness } from '../analysisHarness';
-import { productionRuntimeRegistry } from '../runtimeRegistry';
+import {
+  isProductionAgentRuntimeKind,
+  listProductionRuntimeKinds,
+} from '../runtimeDescriptors';
 
 const result: AnalysisResult = {
   sessionId: 'session-1',
@@ -149,12 +152,12 @@ describe('AnalysisHarness hidden strangler', () => {
   });
 
   it('does not register the harness as a production runtime path', () => {
-    expect(productionRuntimeRegistry.listRuntimeKinds()).toEqual([
+    expect(listProductionRuntimeKinds()).toEqual([
       'claude-agent-sdk',
       'openai-agents-sdk',
       'pi-agent-core',
       'opencode',
     ]);
-    expect(productionRuntimeRegistry.has('analysis-harness')).toBe(false);
+    expect(isProductionAgentRuntimeKind('analysis-harness')).toBe(false);
   });
 });

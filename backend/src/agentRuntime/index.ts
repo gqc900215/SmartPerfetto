@@ -39,10 +39,7 @@ export {
   type RuntimeEngineDescriptor,
 } from './runtimeDescriptorTypes';
 export {
-  RuntimeRegistry,
-  createProductionRuntimeRegistry,
-  createRuntimeRegistry,
-  productionRuntimeRegistry,
+  createRuntimeRegistryForSelection,
   type RuntimeEngineDefinition,
   type RuntimeFactoryInput,
 } from './runtimeRegistry';
