@@ -12,12 +12,8 @@ import { normalizeCodeAwareMode, type CodeAwareMode } from '../services/codebase
 import type { KnowledgeScope } from '../services/scopedKnowledgeStore';
 import type { ProviderScope } from '../services/providerManager';
 import type { RuntimeSelection } from './runtimeSelection';
-import type {
-  EngineCapabilities,
-  RuntimeClassifierPolicy,
-  RuntimeContinuationPolicy,
-} from './runtimeCapabilities';
-import { getProductionEngineCapabilities } from './runtimeCapabilities';
+import type { EngineCapabilities } from './runtimeDescriptorTypes';
+import { getProductionEngineCapabilities } from './runtimeDescriptors';
 import {
   buildRuntimeSessionMapKey,
   formatTraceContext,
@@ -65,7 +61,6 @@ export interface AnalysisRunSpec {
   mode: {
     requested: NonNullable<AnalysisOptions['analysisMode']>;
     resolved?: QueryComplexity;
-    classifierPolicy: RuntimeClassifierPolicy;
     classifierInput: ComplexityClassifierInput;
   };
   traceContext: {
@@ -85,7 +80,6 @@ export interface AnalysisRunSpec {
     codeAwareMode: CodeAwareMode;
     codebaseIds: string[];
   };
-  continuationPolicy: RuntimeContinuationPolicy;
   budget: RuntimeBudgetInputs;
 }
 
@@ -161,7 +155,6 @@ export function createAnalysisRunSpec(input: CreateAnalysisRunSpecInput): Analys
     mode: {
       requested: options.analysisMode ?? 'auto',
       resolved: input.resolvedMode,
-      classifierPolicy: engineCapabilities.classifierPolicy,
       classifierInput,
     },
     traceContext: {
@@ -181,7 +174,6 @@ export function createAnalysisRunSpec(input: CreateAnalysisRunSpecInput): Analys
       codeAwareMode,
       codebaseIds,
     },
-    continuationPolicy: engineCapabilities.continuationPolicy,
     budget: input.budget ?? {},
   };
 }

@@ -3,33 +3,23 @@
 // This file is part of SmartPerfetto. See LICENSE for details.
 
 import type { IOrchestrator } from '../agent/core/orchestratorTypes';
-import { createClaudeRuntime } from '../agentv3';
-import type { AgentRuntimeKind } from '../services/providerManager';
-import type { TraceProcessorService } from '../services/traceProcessorService';
-import type { RuntimeSelection } from './runtimeSelection';
-import type { EngineCapabilities } from './runtimeCapabilities';
-import { getProductionEngineCapabilities } from './runtimeCapabilities';
+import {
+  PRODUCTION_RUNTIME_DESCRIPTORS,
+} from './runtimeDescriptors';
+import type {
+  EngineCapabilities,
+  RuntimeEngineDefinition,
+  RuntimeFactoryInput,
+} from './runtimeDescriptorTypes';
 import {
   createPiAgentCoreRuntimeDefinition,
   EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND,
-  PI_AGENT_CORE_RUNTIME_KIND,
 } from './piAgentCoreRuntime';
 import {
   createOpenCodeRuntimeDefinition,
   EXPERIMENTAL_OPENCODE_RUNTIME_KIND,
-  OPENCODE_RUNTIME_KIND,
 } from './openCodeRuntime';
-
-export interface RuntimeFactoryInput {
-  traceProcessorService: TraceProcessorService;
-  selection: RuntimeSelection<string>;
-}
-
-export interface RuntimeEngineDefinition {
-  kind: string;
-  capabilities: EngineCapabilities;
-  createOrchestrator(input: RuntimeFactoryInput): IOrchestrator;
-}
+export type { RuntimeEngineDefinition, RuntimeFactoryInput } from './runtimeDescriptorTypes';
 
 export class RuntimeRegistry {
   private readonly definitions = new Map<string, RuntimeEngineDefinition>();
@@ -81,45 +71,7 @@ export class RuntimeRegistry {
   }
 }
 
-const productionRuntimeDefinitions: readonly RuntimeEngineDefinition[] = [
-  {
-    kind: 'claude-agent-sdk',
-    capabilities: getProductionEngineCapabilities('claude-agent-sdk'),
-    createOrchestrator: ({ traceProcessorService, selection }) => (
-      createClaudeRuntime(
-        traceProcessorService,
-        undefined,
-        selection as RuntimeSelection<AgentRuntimeKind>,
-      )
-    ),
-  },
-  {
-    kind: 'openai-agents-sdk',
-    capabilities: getProductionEngineCapabilities('openai-agents-sdk'),
-    createOrchestrator: ({ traceProcessorService, selection }) => {
-      // Lazy import keeps the OpenAI runtime isolated from Claude-only startup
-      // paths and avoids circular imports while both SDKs remain first-class.
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { createOpenAIRuntime } = require('../agentOpenAI') as typeof import('../agentOpenAI');
-      return createOpenAIRuntime(
-        traceProcessorService,
-        selection as RuntimeSelection<AgentRuntimeKind>,
-      );
-    },
-  },
-  {
-    kind: PI_AGENT_CORE_RUNTIME_KIND,
-    capabilities: getProductionEngineCapabilities(PI_AGENT_CORE_RUNTIME_KIND),
-    createOrchestrator: (input) => createPiAgentCoreRuntimeDefinition(PI_AGENT_CORE_RUNTIME_KIND)
-      .createOrchestrator(input),
-  },
-  {
-    kind: OPENCODE_RUNTIME_KIND,
-    capabilities: getProductionEngineCapabilities(OPENCODE_RUNTIME_KIND),
-    createOrchestrator: (input) => createOpenCodeRuntimeDefinition(OPENCODE_RUNTIME_KIND)
-      .createOrchestrator(input),
-  },
-];
+const productionRuntimeDefinitions: readonly RuntimeEngineDefinition[] = PRODUCTION_RUNTIME_DESCRIPTORS;
 
 export function createRuntimeRegistry(
   definitions: readonly RuntimeEngineDefinition[] = [],

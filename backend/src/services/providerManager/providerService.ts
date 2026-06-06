@@ -20,7 +20,7 @@ import {
   resolveProviderAgentRuntime,
   sharedKeyShouldUseClaudeAuthToken,
   supportsAgentRuntimeType,
-} from './runtimeCapabilities';
+} from './providerRuntimeMatrix';
 
 const SENSITIVE_FIELDS: (keyof ProviderConfig['connection'])[] = [
   'apiKey',

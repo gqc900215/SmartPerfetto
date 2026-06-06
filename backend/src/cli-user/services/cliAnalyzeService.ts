@@ -46,7 +46,7 @@ import {
   resolveAgentRuntimeSelection,
   type BackendAgentRuntimeKind,
 } from '../../agentRuntime/runtimeSelection';
-import { isProductionAgentRuntimeKind } from '../../agentRuntime/runtimeCapabilities';
+import { isProductionAgentRuntimeKind } from '../../agentRuntime/runtimeKinds';
 import {
   getSnapshotRuntimeKind,
   getSnapshotRuntimeProviderId,

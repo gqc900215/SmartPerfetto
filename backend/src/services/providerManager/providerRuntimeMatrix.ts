@@ -1,59 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import {
+  getProviderTypesForRuntime,
+  isProductionAgentRuntimeKind,
+  supportsRuntimeProviderType,
+} from '../../agentRuntime/runtimeDescriptors';
 import type {
   AgentRuntimeKind,
   DualSurfaceProviderType,
   ProviderConfig,
   ProviderType,
 } from './types';
+import { DUAL_SURFACE_PROVIDER_TYPES } from './providerTypes';
 
-export const DUAL_SURFACE_PROVIDER_TYPES: readonly DualSurfaceProviderType[] = [
-  'deepseek',
-  'glm',
-  'qwen',
-  'qwen_coding',
-  'kimi_code',
-  'kimi',
-  'doubao',
-  'minimax',
-  'xiaomi',
-  'tencent_token_plan',
-  'tencent_coding_plan',
-  'hunyuan',
-  'qianfan',
-  'stepfun',
-  'siliconflow',
-  'huawei',
-];
-
-const CLAUDE_RUNTIME_TYPES: readonly ProviderType[] = [
-  'anthropic',
-  'bedrock',
-  'vertex',
-  ...DUAL_SURFACE_PROVIDER_TYPES,
-  'custom',
-];
-
-const OPENAI_RUNTIME_TYPES: readonly ProviderType[] = [
-  'openai',
-  'ollama',
-  ...DUAL_SURFACE_PROVIDER_TYPES,
-  'custom',
-];
-
-const PI_AGENT_CORE_RUNTIME_TYPES: readonly ProviderType[] = [
-  'custom',
-];
-
-const OPENCODE_RUNTIME_TYPES: readonly ProviderType[] = [
-  'custom',
-];
+export { DUAL_SURFACE_PROVIDER_TYPES };
 
 export function isAgentRuntimeKind(value: unknown): value is AgentRuntimeKind {
-  return value === 'claude-agent-sdk'
-    || value === 'openai-agents-sdk'
-    || value === 'pi-agent-core'
-    || value === 'opencode';
+  return isProductionAgentRuntimeKind(value);
 }
 
 export function isDualSurfaceProviderType(type: ProviderType): type is DualSurfaceProviderType {
@@ -61,10 +24,7 @@ export function isDualSurfaceProviderType(type: ProviderType): type is DualSurfa
 }
 
 export function supportsAgentRuntimeType(type: ProviderType, runtime: AgentRuntimeKind): boolean {
-  if (runtime === 'openai-agents-sdk') return OPENAI_RUNTIME_TYPES.includes(type);
-  if (runtime === 'pi-agent-core') return PI_AGENT_CORE_RUNTIME_TYPES.includes(type);
-  if (runtime === 'opencode') return OPENCODE_RUNTIME_TYPES.includes(type);
-  return CLAUDE_RUNTIME_TYPES.includes(type);
+  return supportsRuntimeProviderType(type, runtime);
 }
 
 export function assertAgentRuntimeSupported(type: ProviderType, runtime?: unknown): asserts runtime is AgentRuntimeKind | undefined {
@@ -72,7 +32,7 @@ export function assertAgentRuntimeSupported(type: ProviderType, runtime?: unknow
   if (!isAgentRuntimeKind(runtime)) {
     throw new Error(`Invalid agent runtime: ${String(runtime)}`);
   }
-  if (!supportsAgentRuntimeType(type, runtime)) {
+  if (!getProviderTypesForRuntime(runtime).includes(type)) {
     throw new Error(`Provider type "${type}" does not support ${runtime}`);
   }
 }

@@ -17,12 +17,18 @@ export {
 } from './analysisRunSpec';
 export {
   getProductionEngineCapabilities,
+  getProductionRuntimeDescriptor,
+  getProviderTypesForRuntime,
   isProductionAgentRuntimeKind,
   listProductionRuntimeKinds,
+  supportsRuntimeProviderType,
+  type AgentRuntimeKind,
+} from './runtimeDescriptors';
+export {
   type EngineCapabilities,
-  type RuntimeClassifierPolicy,
-  type RuntimeContinuationPolicy,
-} from './runtimeCapabilities';
+  type RuntimeDiagnosticsInput,
+  type RuntimeEngineDescriptor,
+} from './runtimeDescriptorTypes';
 export {
   RuntimeRegistry,
   createProductionRuntimeRegistry,

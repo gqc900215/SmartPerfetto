@@ -98,7 +98,7 @@ describe('AnalysisRunSpec shadow mode', () => {
     });
   });
 
-  it('reuses existing classifier input construction and preserves Claude classifier policy', () => {
+  it('reuses existing classifier input construction without storing runtime policy descriptors', () => {
     const previousTurns = [
       {
         query: 'first',
@@ -131,7 +131,6 @@ describe('AnalysisRunSpec shadow mode', () => {
       previousTurns,
     });
 
-    expect(spec.mode.classifierPolicy).toBe('claude-local-rules-then-claude-light-model');
     expect(spec.mode.classifierInput).toEqual(buildComplexityClassifierInput({
       query: 'continue from the selected slice',
       sceneType: 'scrolling',
@@ -139,15 +138,11 @@ describe('AnalysisRunSpec shadow mode', () => {
       hasReferenceTrace: true,
       previousTurns,
     }));
-    expect(spec.continuationPolicy).toEqual({
-      sdkRunDoneMeansAnalysisDone: false,
-      claudeVerifierCorrectionLoop: true,
-      openAiPlanContinuation: false,
-      openAiFinalReportContinuation: false,
-    });
+    expect(spec.mode).not.toHaveProperty('classifierPolicy');
+    expect(spec).not.toHaveProperty('continuationPolicy');
   });
 
-  it('preserves OpenAI local-first classifier and continuation policy differences', () => {
+  it('preserves OpenAI runtime identity and shared classifier input', () => {
     const spec = createAnalysisRunSpec({
       query: 'quick status?',
       sessionId: 'session-openai',
@@ -176,17 +171,16 @@ describe('AnalysisRunSpec shadow mode', () => {
     expect(spec.mode).toMatchObject({
       requested: 'fast',
       resolved: 'quick',
-      classifierPolicy: 'openai-local-rules-then-openai-light-model',
     });
     expect(spec.tools.requestScope).toEqual({
       sessionId: 'session-openai',
       hasCodebaseAccess: false,
     });
-    expect(spec.continuationPolicy).toEqual({
-      sdkRunDoneMeansAnalysisDone: false,
-      claudeVerifierCorrectionLoop: false,
-      openAiPlanContinuation: true,
-      openAiFinalReportContinuation: true,
+    expect(spec.runtime.capabilities).toEqual({
+      kind: 'openai-agents-sdk',
+      displayName: 'OpenAI Agents SDK',
+      production: true,
+      publicRuntime: true,
     });
   });
 });

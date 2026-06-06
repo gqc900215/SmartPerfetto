@@ -10,7 +10,7 @@ import { createAnalysisRunSpec } from '../analysisRunSpec';
 import type { RuntimeSelection } from '../runtimeSelection';
 import { resolveAgentRuntimeSelection } from '../runtimeSelection';
 import { createRuntimeRegistry } from '../runtimeRegistry';
-import type { EngineCapabilities } from '../runtimeCapabilities';
+import type { EngineCapabilities } from '../runtimeDescriptorTypes';
 
 type IsExact<T, U> =
   (<G>() => G extends T ? 1 : 2) extends
@@ -26,30 +26,6 @@ const fakeCapabilities: EngineCapabilities = {
   displayName: 'Fake Third-Party Runtime',
   production: false,
   publicRuntime: false,
-  nativeLoop: 'third-party-adapter',
-  toolTransport: 'shared-tool-spec',
-  toolSchemaDialect: 'zod_raw_shape',
-  eventModel: 'fake-third-party',
-  abortMechanism: 'abort-signal',
-  toolExecution: {
-    defaultMode: 'sequential',
-    requestScopedAllowlist: true,
-    externalDiscovery: false,
-    builtInShellOrFileTools: false,
-  },
-  classifierPolicy: 'third-party-local-rules-only',
-  continuationPolicy: {
-    sdkRunDoneMeansAnalysisDone: false,
-    claudeVerifierCorrectionLoop: false,
-    openAiPlanContinuation: false,
-    openAiFinalReportContinuation: false,
-  },
-  snapshotState: {
-    storesClaudeSdkSession: false,
-    storesOpenAiResponseState: false,
-    storesOpaqueThirdPartyState: true,
-  },
-  supportsProviderRuntimePinning: true,
 };
 
 describe('fake third-party runtime contract', () => {
@@ -105,7 +81,7 @@ describe('fake third-party runtime contract', () => {
     });
   });
 
-  it('lets product policy consume EngineCapabilities instead of Claude/OpenAI branches', () => {
+  it('keeps custom test registries compatible with slim EngineCapabilities', () => {
     const selection: RuntimeSelection<typeof fakeKind> = {
       kind: fakeKind,
       source: 'default',
@@ -124,7 +100,7 @@ describe('fake third-party runtime contract', () => {
 
     expect(spec.runtime.kind).toBe(fakeKind);
     expect(spec.runtime.capabilities).toBe(fakeCapabilities);
-    expect(spec.mode.classifierPolicy).toBe('third-party-local-rules-only');
-    expect(spec.continuationPolicy).toEqual(fakeCapabilities.continuationPolicy);
+    expect(spec.mode).not.toHaveProperty('classifierPolicy');
+    expect(spec).not.toHaveProperty('continuationPolicy');
   });
 });

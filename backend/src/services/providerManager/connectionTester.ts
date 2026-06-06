@@ -5,7 +5,7 @@ import type { OpenAIProtocol, ProviderConfig, ProviderType, TestResult } from '.
 import {
   resolveProviderAgentRuntime,
   sharedKeyShouldUseClaudeAuthToken,
-} from './runtimeCapabilities';
+} from './providerRuntimeMatrix';
 
 const TEST_REQUEST_TIMEOUT_MS = 10000;
 const TEST_TOTAL_TIMEOUT_MS = 15000;

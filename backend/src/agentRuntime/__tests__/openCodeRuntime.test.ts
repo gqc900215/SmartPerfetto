@@ -63,22 +63,11 @@ function createFakeModuleLoader(record: {
 
 describe('experimental OpenCode runtime contract', () => {
   it('describes OpenCode as hidden, server-backed, JSON Schema, and no shell/file tools', () => {
-    expect(getOpenCodeEngineCapabilities()).toMatchObject({
+    expect(getOpenCodeEngineCapabilities()).toEqual({
       kind: EXPERIMENTAL_OPENCODE_RUNTIME_KIND,
+      displayName: 'Experimental OpenCode',
       production: false,
       publicRuntime: false,
-      nativeLoop: 'opencode-server',
-      toolTransport: 'opencode-mcp',
-      toolSchemaDialect: 'json_schema',
-      eventModel: 'opencode-server',
-      abortMechanism: 'session-abort-and-server-close',
-      toolExecution: {
-        defaultMode: 'sdk-controlled',
-        requestScopedAllowlist: true,
-        externalDiscovery: false,
-        builtInShellOrFileTools: false,
-      },
-      supportsProviderRuntimePinning: false,
     });
   });
 

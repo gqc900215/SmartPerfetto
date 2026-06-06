@@ -157,25 +157,11 @@ describe('experimental Pi agent-core runtime contract', () => {
   });
 
   it('describes Pi agent-core as hidden, optional, sequential, and no shell/file tool runtime', () => {
-    expect(getPiAgentCoreEngineCapabilities()).toMatchObject({
+    expect(getPiAgentCoreEngineCapabilities()).toEqual({
       kind: EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND,
+      displayName: 'Experimental Pi Agent Core',
       production: false,
       publicRuntime: false,
-      nativeLoop: 'pi-agent-core',
-      toolTransport: 'pi-agent-core-tools',
-      toolSchemaDialect: 'typebox',
-      eventModel: 'pi-agent-core',
-      abortMechanism: 'agent-abort',
-      toolExecution: {
-        defaultMode: 'sequential',
-        requestScopedAllowlist: true,
-        externalDiscovery: false,
-        builtInShellOrFileTools: false,
-      },
-      snapshotState: {
-        storesOpaqueThirdPartyState: true,
-      },
-      supportsProviderRuntimePinning: false,
     });
   });
 
@@ -235,20 +221,11 @@ describe('experimental Pi agent-core runtime contract', () => {
   });
 
   it('describes the public Pi agent-core runtime as provider-pinnable but capability-limited', () => {
-    expect(getPiAgentCoreEngineCapabilities('pi-agent-core')).toMatchObject({
+    expect(getPiAgentCoreEngineCapabilities('pi-agent-core')).toEqual({
       kind: 'pi-agent-core',
       displayName: 'Pi Agent Core',
       production: true,
       publicRuntime: true,
-      nativeLoop: 'pi-agent-core',
-      toolTransport: 'pi-agent-core-tools',
-      toolSchemaDialect: 'typebox',
-      toolExecution: {
-        requestScopedAllowlist: true,
-        externalDiscovery: false,
-        builtInShellOrFileTools: false,
-      },
-      supportsProviderRuntimePinning: true,
     });
   });
 

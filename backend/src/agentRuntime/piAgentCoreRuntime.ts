@@ -62,7 +62,7 @@ import {
 } from './runtimeToolSpec';
 import type { RuntimeSelection } from './runtimeSelection';
 import type { RuntimeEngineDefinition, RuntimeFactoryInput } from './runtimeRegistry';
-import type { EngineCapabilities } from './runtimeCapabilities';
+import type { EngineCapabilities } from './runtimeDescriptorTypes';
 import { createAnalysisRunSpec, type AnalysisRunSpec } from './analysisRunSpec';
 import {
   EXPERIMENTAL_OPENCODE_RUNTIME_KIND,
@@ -246,30 +246,6 @@ export function getPiAgentCoreEngineCapabilities(
     displayName: publicRuntime ? 'Pi Agent Core' : 'Experimental Pi Agent Core',
     production: publicRuntime,
     publicRuntime,
-    nativeLoop: 'pi-agent-core',
-    toolTransport: 'pi-agent-core-tools',
-    toolSchemaDialect: 'typebox',
-    eventModel: 'pi-agent-core',
-    abortMechanism: 'agent-abort',
-    toolExecution: {
-      defaultMode: 'sequential',
-      requestScopedAllowlist: true,
-      externalDiscovery: false,
-      builtInShellOrFileTools: false,
-    },
-    classifierPolicy: 'third-party-local-rules-only',
-    continuationPolicy: {
-      sdkRunDoneMeansAnalysisDone: false,
-      claudeVerifierCorrectionLoop: false,
-      openAiPlanContinuation: false,
-      openAiFinalReportContinuation: false,
-    },
-    snapshotState: {
-      storesClaudeSdkSession: false,
-      storesOpenAiResponseState: false,
-      storesOpaqueThirdPartyState: true,
-    },
-    supportsProviderRuntimePinning: publicRuntime,
   };
 }
 

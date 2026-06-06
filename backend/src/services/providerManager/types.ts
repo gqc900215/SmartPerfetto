@@ -1,13 +1,16 @@
 // backend/src/services/providerManager/types.ts
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import type { AgentRuntimeKind } from '../../agentRuntime/runtimeKinds';
+import type { DUAL_SURFACE_PROVIDER_TYPES } from './providerTypes';
+
 export interface ProviderModels {
   primary: string;
   light: string;
   subAgent?: string;
 }
 
-export type AgentRuntimeKind = 'claude-agent-sdk' | 'openai-agents-sdk' | 'pi-agent-core' | 'opencode';
+export type { AgentRuntimeKind };
 export type OpenAIProtocol = 'responses' | 'chat_completions';
 
 export interface ProviderConnection {
@@ -74,23 +77,7 @@ export interface ProviderCustom {
   envOverrides?: Record<string, string>;
 }
 
-export type DualSurfaceProviderType =
-  | 'deepseek'
-  | 'glm'
-  | 'qwen'
-  | 'qwen_coding'
-  | 'kimi_code'
-  | 'kimi'
-  | 'doubao'
-  | 'minimax'
-  | 'xiaomi'
-  | 'tencent_token_plan'
-  | 'tencent_coding_plan'
-  | 'hunyuan'
-  | 'qianfan'
-  | 'stepfun'
-  | 'siliconflow'
-  | 'huawei';
+export type DualSurfaceProviderType = typeof DUAL_SURFACE_PROVIDER_TYPES[number];
 export type ProviderType =
   | 'anthropic'
   | 'bedrock'

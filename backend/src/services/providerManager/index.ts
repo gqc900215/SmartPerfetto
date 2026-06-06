@@ -29,7 +29,7 @@ export {
   resolveProviderAgentRuntime,
   sharedKeyShouldUseClaudeAuthToken,
   supportsAgentRuntimeType,
-} from './runtimeCapabilities';
+} from './providerRuntimeMatrix';
 
 let instance: ProviderService | null = null;
 

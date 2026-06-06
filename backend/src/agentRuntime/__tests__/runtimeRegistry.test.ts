@@ -10,11 +10,15 @@ import {
   type RuntimeEngineDefinition,
 } from '../runtimeRegistry';
 import {
+  PRODUCTION_RUNTIME_DESCRIPTORS,
   getProductionEngineCapabilities,
   isProductionAgentRuntimeKind,
   listProductionRuntimeKinds,
+  supportsRuntimeProviderType,
+} from '../runtimeDescriptors';
+import {
   type EngineCapabilities,
-} from '../runtimeCapabilities';
+} from '../runtimeDescriptorTypes';
 
 function fakeCapabilities(kind = 'fake-runtime'): EngineCapabilities {
   return {
@@ -22,47 +26,22 @@ function fakeCapabilities(kind = 'fake-runtime'): EngineCapabilities {
     displayName: 'Fake Runtime',
     production: false,
     publicRuntime: false,
-    nativeLoop: 'third-party-adapter',
-    toolTransport: 'shared-tool-spec',
-    toolSchemaDialect: 'zod_raw_shape',
-    eventModel: 'fake-third-party',
-    abortMechanism: 'abort-signal',
-    toolExecution: {
-      defaultMode: 'sequential',
-      requestScopedAllowlist: true,
-      externalDiscovery: false,
-      builtInShellOrFileTools: false,
-    },
-    classifierPolicy: 'third-party-local-rules-only',
-    continuationPolicy: {
-      sdkRunDoneMeansAnalysisDone: false,
-      claudeVerifierCorrectionLoop: false,
-      openAiPlanContinuation: false,
-      openAiFinalReportContinuation: false,
-    },
-    snapshotState: {
-      storesClaudeSdkSession: false,
-      storesOpenAiResponseState: false,
-      storesOpaqueThirdPartyState: true,
-    },
-    supportsProviderRuntimePinning: true,
   };
 }
 
 describe('runtime registry', () => {
-  it('lists the public production runtimes, including Pi Agent Core and OpenCode', () => {
-    expect(listProductionRuntimeKinds()).toEqual([
+  it('derives public production runtimes from descriptors', () => {
+    const descriptorKinds = PRODUCTION_RUNTIME_DESCRIPTORS.map(descriptor => descriptor.kind);
+    const expectedKinds = [
       'claude-agent-sdk',
       'openai-agents-sdk',
       'pi-agent-core',
       'opencode',
-    ]);
-    expect(productionRuntimeRegistry.listRuntimeKinds()).toEqual([
-      'claude-agent-sdk',
-      'openai-agents-sdk',
-      'pi-agent-core',
-      'opencode',
-    ]);
+    ];
+
+    expect(descriptorKinds).toEqual(expectedKinds);
+    expect(listProductionRuntimeKinds()).toEqual(expectedKinds);
+    expect(productionRuntimeRegistry.listRuntimeKinds()).toEqual(expectedKinds);
     expect(isProductionAgentRuntimeKind('claude-agent-sdk')).toBe(true);
     expect(isProductionAgentRuntimeKind('openai-agents-sdk')).toBe(true);
     expect(isProductionAgentRuntimeKind('pi-agent-core')).toBe(true);
@@ -70,7 +49,7 @@ describe('runtime registry', () => {
     expect(isProductionAgentRuntimeKind('fake-third-party-runtime')).toBe(false);
   });
 
-  it('exposes policy-relevant runtime differences as EngineCapabilities', () => {
+  it('exposes slim runtime capabilities as descriptor truth', () => {
     const claude = productionRuntimeRegistry.getCapabilities('claude-agent-sdk');
     const openai = productionRuntimeRegistry.getCapabilities('openai-agents-sdk');
     const pi = productionRuntimeRegistry.getCapabilities('pi-agent-core');
@@ -80,71 +59,46 @@ describe('runtime registry', () => {
     expect(openai).toBe(getProductionEngineCapabilities('openai-agents-sdk'));
     expect(pi).toBe(getProductionEngineCapabilities('pi-agent-core'));
     expect(opencode).toBe(getProductionEngineCapabilities('opencode'));
-    expect(claude).toMatchObject({
+    expect(claude).toEqual({
+      kind: 'claude-agent-sdk',
+      displayName: 'Claude Agent SDK',
+      production: true,
       publicRuntime: true,
-      nativeLoop: 'claude-agent-sdk',
-      toolTransport: 'claude-mcp',
-      classifierPolicy: 'claude-local-rules-then-claude-light-model',
-      continuationPolicy: {
-        claudeVerifierCorrectionLoop: true,
-        openAiPlanContinuation: false,
-        openAiFinalReportContinuation: false,
-      },
-      snapshotState: {
-        storesClaudeSdkSession: true,
-        storesOpenAiResponseState: false,
-      },
     });
-    expect(openai).toMatchObject({
+    expect(openai).toEqual({
+      kind: 'openai-agents-sdk',
+      displayName: 'OpenAI Agents SDK',
+      production: true,
       publicRuntime: true,
-      nativeLoop: 'openai-agents-sdk',
-      toolTransport: 'openai-function-tools',
-      classifierPolicy: 'openai-local-rules-then-openai-light-model',
-      continuationPolicy: {
-        claudeVerifierCorrectionLoop: false,
-        openAiPlanContinuation: true,
-        openAiFinalReportContinuation: true,
-      },
-      snapshotState: {
-        storesClaudeSdkSession: false,
-        storesOpenAiResponseState: true,
-      },
     });
-    expect(pi).toMatchObject({
+    expect(pi).toEqual({
+      kind: 'pi-agent-core',
+      displayName: 'Pi Agent Core',
+      production: true,
       publicRuntime: true,
-      nativeLoop: 'pi-agent-core',
-      toolTransport: 'pi-agent-core-tools',
-      toolSchemaDialect: 'typebox',
-      classifierPolicy: 'third-party-local-rules-only',
-      continuationPolicy: {
-        claudeVerifierCorrectionLoop: false,
-        openAiPlanContinuation: false,
-        openAiFinalReportContinuation: false,
-      },
-      snapshotState: {
-        storesClaudeSdkSession: false,
-        storesOpenAiResponseState: false,
-        storesOpaqueThirdPartyState: true,
-      },
-      supportsProviderRuntimePinning: true,
     });
-    expect(opencode).toMatchObject({
+    expect(opencode).toEqual({
+      kind: 'opencode',
+      displayName: 'OpenCode',
+      production: true,
       publicRuntime: true,
-      nativeLoop: 'opencode-server',
-      toolTransport: 'opencode-mcp',
-      toolSchemaDialect: 'json_schema',
-      classifierPolicy: 'third-party-local-rules-only',
-      toolExecution: {
-        externalDiscovery: false,
-        builtInShellOrFileTools: false,
-      },
-      snapshotState: {
-        storesClaudeSdkSession: false,
-        storesOpenAiResponseState: false,
-        storesOpaqueThirdPartyState: true,
-      },
-      supportsProviderRuntimePinning: true,
     });
+    for (const capabilities of [claude, openai, pi, opencode]) {
+      expect(capabilities).not.toHaveProperty('toolTransport');
+      expect(capabilities).not.toHaveProperty('continuationPolicy');
+      expect(capabilities).not.toHaveProperty('snapshotState');
+    }
+  });
+
+  it('derives provider compatibility from runtime descriptors', () => {
+    expect(supportsRuntimeProviderType('anthropic', 'claude-agent-sdk')).toBe(true);
+    expect(supportsRuntimeProviderType('deepseek', 'claude-agent-sdk')).toBe(true);
+    expect(supportsRuntimeProviderType('deepseek', 'openai-agents-sdk')).toBe(true);
+    expect(supportsRuntimeProviderType('openai', 'openai-agents-sdk')).toBe(true);
+    expect(supportsRuntimeProviderType('openai', 'claude-agent-sdk')).toBe(false);
+    expect(supportsRuntimeProviderType('custom', 'pi-agent-core')).toBe(true);
+    expect(supportsRuntimeProviderType('custom', 'opencode')).toBe(true);
+    expect(supportsRuntimeProviderType('anthropic', 'opencode')).toBe(false);
   });
 
   it('requires every production runtime to expose session-scoped cancellation', () => {

@@ -60,7 +60,7 @@ import { getExtendedKnowledgeBase } from '../services/sqlKnowledgeBase';
 import { sanitizeCodeAwareText } from '../services/security/codeAwareOutputRegistry';
 import { getProviderService, type ProviderConfig } from '../services/providerManager';
 import type { RuntimeSelection } from './runtimeSelection';
-import type { EngineCapabilities } from './runtimeCapabilities';
+import type { EngineCapabilities } from './runtimeDescriptorTypes';
 import type { RuntimeEngineDefinition, RuntimeFactoryInput } from './runtimeRegistry';
 import { createAnalysisRunSpec, type AnalysisRunSpec } from './analysisRunSpec';
 import {
@@ -315,30 +315,6 @@ export function getOpenCodeEngineCapabilities(
     displayName: publicRuntime ? 'OpenCode' : 'Experimental OpenCode',
     production: publicRuntime,
     publicRuntime,
-    nativeLoop: 'opencode-server',
-    toolTransport: 'opencode-mcp',
-    toolSchemaDialect: 'json_schema',
-    eventModel: 'opencode-server',
-    abortMechanism: 'session-abort-and-server-close',
-    toolExecution: {
-      defaultMode: 'sdk-controlled',
-      requestScopedAllowlist: true,
-      externalDiscovery: false,
-      builtInShellOrFileTools: false,
-    },
-    classifierPolicy: 'third-party-local-rules-only',
-    continuationPolicy: {
-      sdkRunDoneMeansAnalysisDone: false,
-      claudeVerifierCorrectionLoop: false,
-      openAiPlanContinuation: false,
-      openAiFinalReportContinuation: false,
-    },
-    snapshotState: {
-      storesClaudeSdkSession: false,
-      storesOpenAiResponseState: false,
-      storesOpaqueThirdPartyState: true,
-    },
-    supportsProviderRuntimePinning: publicRuntime,
   };
 }
 

@@ -6,7 +6,7 @@ import type { TraceProcessorService } from '../services/traceProcessorService';
 import type { IOrchestrator } from '../agent/core/orchestratorTypes';
 import { getProviderService, type AgentRuntimeKind, type ProviderScope } from '../services/providerManager';
 import { createAnalysisHarness } from './analysisHarness';
-import { isProductionAgentRuntimeKind } from './runtimeCapabilities';
+import { isProductionAgentRuntimeKind } from './runtimeKinds';
 import {
   type ExperimentalAgentRuntimeKind,
   resolveExperimentalAgentRuntimeSelection,
