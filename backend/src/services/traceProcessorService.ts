@@ -16,6 +16,11 @@ import {
 } from './traceProcessorLeaseStore';
 import { traceProcessorProcessorKey } from './traceProcessorConnectionModel';
 import type { EnterpriseRepositoryScope } from './enterpriseRepository';
+import {
+  raceWithTraceProcessorCancellation,
+  rethrowIfTraceProcessorQueryCancelled,
+  throwIfTraceProcessorQueryCancelled,
+} from './traceProcessorCancellation';
 
 export interface TraceInfo {
   id: string;
@@ -381,15 +386,19 @@ export class TraceProcessorService extends EventEmitter {
     traceId: string,
     options: TraceProcessorServiceQueryOptions = {},
   ): Promise<TraceProcessor> {
+    throwIfTraceProcessorQueryCancelled(options.signal);
     const leaseContext = this.resolveLeaseQueryContext(traceId, options);
     const processorKey = this.processorKeyForLease(traceId, leaseContext?.leaseId, leaseContext?.mode);
     let processor = this.processors.get(processorKey);
     if (!processor && leaseContext) {
-      processor = await this.ensureProcessorForLease(
-        traceId,
-        leaseContext.leaseId,
-        leaseContext.mode,
-        leaseContext.leaseScope,
+      processor = await raceWithTraceProcessorCancellation(
+        this.ensureProcessorForLease(
+          traceId,
+          leaseContext.leaseId,
+          leaseContext.mode,
+          leaseContext.leaseScope,
+        ),
+        options.signal,
       );
     }
     if (!processor) {
@@ -403,8 +412,12 @@ export class TraceProcessorService extends EventEmitter {
     if (processor.status === 'error') {
       if (leaseContext?.leaseId) {
         try {
-          processor = await this.restartLeaseProcessor(traceId, leaseContext);
+          processor = await raceWithTraceProcessorCancellation(
+            this.restartLeaseProcessor(traceId, leaseContext),
+            options.signal,
+          );
         } catch (err: any) {
+          rethrowIfTraceProcessorQueryCancelled(err);
           throw new Error(`HTTP server not ready (auto-recovery failed: ${err.message})`);
         }
         return processor;
@@ -431,12 +444,14 @@ export class TraceProcessorService extends EventEmitter {
       }
 
       try {
-        processor = await recovery;
+        processor = await raceWithTraceProcessorCancellation(recovery, options.signal);
       } catch (err: any) {
+        rethrowIfTraceProcessorQueryCancelled(err);
         throw new Error(`HTTP server not ready (auto-recovery failed: ${err.message})`);
       }
     }
 
+    throwIfTraceProcessorQueryCancelled(options.signal);
     return processor;
   }
 

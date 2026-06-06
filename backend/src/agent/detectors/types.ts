@@ -140,6 +140,7 @@ export interface DetectorContext {
   traceProcessorService: any;
   /** 可选的包名过滤 */
   packageName?: string;
+  signal?: AbortSignal;
 }
 
 /**

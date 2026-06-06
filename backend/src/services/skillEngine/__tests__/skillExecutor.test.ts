@@ -35,6 +35,7 @@ import {
   createSkillExecutor,
 } from '../skillExecutor';
 import { validateDataEnvelope } from '../../../types/dataContract';
+import { isTraceProcessorQueryCancelledError } from '../../traceProcessorCancellation';
 
 // =============================================================================
 // Mock Setup
@@ -625,6 +626,52 @@ describe('Atomic Step 执行', () => {
     const result = await executor.execute('simple_query', 'trace-1');
     expect(result.success).toBe(true);
     expect(mockTraceProcessor.query).toHaveBeenCalledWith('trace-1', 'SELECT name, value FROM test_table');
+  });
+
+  it('应该把 inherited.signal 透传到 SQL 查询', async () => {
+    const skill: SkillDefinition = {
+      name: 'signal_query',
+      type: 'atomic',
+      version: '1.0',
+      meta: createMeta('Signal Query'),
+      sql: 'SELECT name, value FROM test_table',
+    };
+    executor.registerSkill(skill);
+    const controller = new AbortController();
+
+    const result = await executor.execute('signal_query', 'trace-1', {}, {
+      signal: controller.signal,
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockTraceProcessor.query).toHaveBeenCalledWith(
+      'trace-1',
+      'SELECT name, value FROM test_table',
+      { signal: controller.signal },
+    );
+  });
+
+  it('应该在 signal 已取消时快速拒绝且不派发 SQL', async () => {
+    const skill: SkillDefinition = {
+      name: 'aborted_query',
+      type: 'atomic',
+      version: '1.0',
+      meta: createMeta('Aborted Query'),
+      sql: 'SELECT name, value FROM test_table',
+    };
+    executor.registerSkill(skill);
+    const controller = new AbortController();
+    controller.abort();
+
+    try {
+      await executor.execute('aborted_query', 'trace-1', {}, {
+        signal: controller.signal,
+      });
+      throw new Error('Expected SkillExecutor to reject cancellation');
+    } catch (error) {
+      expect(isTraceProcessorQueryCancelledError(error)).toBe(true);
+    }
+    expect(mockTraceProcessor.query).not.toHaveBeenCalled();
   });
 
   it('应该支持变量替换', async () => {
@@ -1794,6 +1841,49 @@ describe('Skill Reference Step 执行', () => {
     expect(result.rawResults?.child_step?.data?.skillId).toBe('child_skill');
   });
 
+  it('子 skill 应该继承父 skill 的 cancellation signal', async () => {
+    mockTraceProcessor.query.mockResolvedValue({
+      columns: ['value'],
+      rows: [[1]],
+    });
+    const controller = new AbortController();
+
+    const childSkill: SkillDefinition = {
+      name: 'child_signal_skill',
+      type: 'atomic',
+      version: '1.0',
+      meta: createMeta('Child Signal Skill'),
+      sql: 'SELECT 1 as value',
+    };
+
+    const parentSkill: SkillDefinition = {
+      name: 'parent_signal_skill',
+      type: 'composite',
+      version: '1.0',
+      meta: createMeta('Parent Signal Skill'),
+      steps: [
+        {
+          id: 'child_step',
+          skill: 'child_signal_skill',
+        },
+      ],
+    };
+
+    executor.registerSkill(childSkill);
+    executor.registerSkill(parentSkill);
+
+    const result = await executor.execute('parent_signal_skill', 'trace-1', {}, {
+      signal: controller.signal,
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockTraceProcessor.query).toHaveBeenCalledWith(
+      'trace-1',
+      'SELECT 1 as value',
+      { signal: controller.signal },
+    );
+  });
+
   it('应该正确传递参数', async () => {
     mockTraceProcessor.query.mockResolvedValue({
       columns: ['value'],
@@ -2760,7 +2850,8 @@ describe('Prerequisites (Perfetto 模块)', () => {
     // 验证模块加载被调用
     expect(mockTraceProcessor.query).toHaveBeenCalledWith(
       'trace-1',
-      'INCLUDE PERFETTO MODULE android_scrolling;'
+      'INCLUDE PERFETTO MODULE android_scrolling;',
+      { priority: 'p2', suppressErrorLog: true },
     );
   });
 
@@ -2787,11 +2878,13 @@ describe('Prerequisites (Perfetto 模块)', () => {
     // 验证两个模块都被加载
     expect(mockTraceProcessor.query).toHaveBeenCalledWith(
       'trace-1',
-      'INCLUDE PERFETTO MODULE android_scrolling;'
+      'INCLUDE PERFETTO MODULE android_scrolling;',
+      { priority: 'p2', suppressErrorLog: true },
     );
     expect(mockTraceProcessor.query).toHaveBeenCalledWith(
       'trace-1',
-      'INCLUDE PERFETTO MODULE android_startup;'
+      'INCLUDE PERFETTO MODULE android_startup;',
+      { priority: 'p2', suppressErrorLog: true },
     );
   });
 

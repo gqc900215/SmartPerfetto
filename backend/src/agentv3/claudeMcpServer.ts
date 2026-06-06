@@ -78,6 +78,11 @@ import {PatchProposer} from '../services/codebase/patchProposer';
 import {normalizeCodeAwareMode, type CodeAwareMode} from '../services/codebase/codeAwareFeature';
 import {filterRagLookup} from '../services/rag/lookupResponseFilter';
 import {SymbolResolver} from '../services/symbol/symbolResolver';
+import type { RuntimeToolExtra } from '../agentRuntime/runtimeToolSpec';
+import {
+  rethrowIfTraceProcessorQueryCancelled,
+  throwIfTraceProcessorQueryCancelled,
+} from '../services/traceProcessorCancellation';
 
 /**
  * Process-wide RagStore singleton, lazily initialized on first MCP tool
@@ -92,6 +97,20 @@ let cachedRagStore: RagStore | null = null;
 function getRagStore(): RagStore {
   if (!cachedRagStore) cachedRagStore = new RagStore(RAG_STORE_PATH);
   return cachedRagStore;
+}
+
+function getRuntimeToolSignal(extra: unknown): AbortSignal | undefined {
+  const runtimeExtra = extra && typeof extra === 'object' ? extra as RuntimeToolExtra : undefined;
+  const signal = runtimeExtra?.signal;
+  if (
+    signal &&
+    typeof signal === 'object' &&
+    typeof (signal as AbortSignal).aborted === 'boolean' &&
+    typeof (signal as AbortSignal).addEventListener === 'function'
+  ) {
+    return signal as AbortSignal;
+  }
+  return undefined;
 }
 
 /** Process-wide BaselineStore singleton (Plan 50). Storage lives next
@@ -1601,7 +1620,8 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
     };
   }
 
-  async function detectArchitecturePayload(): Promise<Record<string, unknown>> {
+  async function detectArchitecturePayload(signal?: AbortSignal): Promise<Record<string, unknown>> {
+    throwIfTraceProcessorQueryCancelled(signal);
     if (options.cachedArchitecture) {
       const info = options.cachedArchitecture;
       return {
@@ -1615,7 +1635,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
       };
     }
     const detector = createArchitectureDetector();
-    const info = await detector.detect({ traceId, traceProcessorService, packageName });
+    const info = await detector.detect({ traceId, traceProcessorService, packageName, signal });
     return {
       type: info.type,
       confidence: info.confidence,
@@ -1634,7 +1654,9 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
     targetTraceId: string,
     sql: string,
     traceSide: TraceProcessorTraceSide = 'current',
+    signal?: AbortSignal,
   ) {
+    throwIfTraceProcessorQueryCancelled(signal);
     const normalized = normalizeRawSql(sql);
     const { sql: finalSql, injected } = injectStdlibIncludes(normalized.sql);
     const traceProvenance = buildTraceProcessorQueryProvenance({
@@ -1655,7 +1677,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
         timestamp: Date.now(),
       });
     }
-    const result = await traceProcessorService.query(targetTraceId, finalSql);
+    const result = await traceProcessorService.query(targetTraceId, finalSql, { signal });
     return {
       result,
       finalSql,
@@ -1685,7 +1707,9 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
         'When true, returns column statistics (min/max/avg/percentiles) + 10 most interesting sample rows instead of full results. Use for large result sets where you need aggregate understanding, not row-level data. Default: false.'
       ),
     },
-    async ({ sql, summary }) => {
+    async ({ sql, summary }, extra) => {
+      const signal = getRuntimeToolSignal(extra);
+      throwIfTraceProcessorQueryCancelled(signal);
       // P0-G10: Block analysis tools until plan is submitted
       const planError = requirePlan('execute_sql');
       if (planError) {
@@ -1709,6 +1733,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
           traceId,
           sql,
           'current',
+          signal,
         );
         const processIdentityWarning = rawSqlProcessIdentityWarning(normalizedSql);
         const truncated = result.rows.length > 200;
@@ -1867,6 +1892,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
           }],
         };
       } catch (err) {
+        rethrowIfTraceProcessorQueryCancelled(err);
         const errMsg = (err as Error).message;
         const traceProvenance = buildTraceProcessorQueryProvenance({
           traceId,
@@ -1921,7 +1947,9 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
         'Optional parameters to pass to the skill. Common: { process_name, start_ts, end_ts, max_frames_per_session }'
       ),
     },
-    async ({ skillId, params }) => {
+    async ({ skillId, params }, extra) => {
+      const signal = getRuntimeToolSignal(extra);
+      throwIfTraceProcessorQueryCancelled(signal);
       // P0-G10: Block analysis tools until plan is submitted
       const skillPlanError = requirePlan('invoke_skill');
       if (skillPlanError) {
@@ -1944,7 +1972,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
             },
             timestamp: Date.now(),
           });
-          const payload = await detectArchitecturePayload();
+          const payload = await detectArchitecturePayload(signal);
           emitUpdate?.({
             type: 'progress',
             content: {
@@ -1972,6 +2000,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
             }],
           };
         } catch (err) {
+          rethrowIfTraceProcessorQueryCancelled(err);
           const errMsg = (err as Error).message;
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({
@@ -2026,7 +2055,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
         });
 
         const skillStart = Date.now();
-        const result = await skillExecutor.execute(skillId, traceId, effectiveParams);
+        const result = await skillExecutor.execute(skillId, traceId, effectiveParams, { signal });
         const skillDuration = Date.now() - skillStart;
 
         emitUpdate?.({
@@ -2229,6 +2258,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
           }],
         };
       } catch (err) {
+        rethrowIfTraceProcessorQueryCancelled(err);
         const errMsg = (err as Error).message;
         emitUpdate?.({
           type: 'progress',
@@ -2297,14 +2327,16 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
     'Returns architecture type (STANDARD/FLUTTER/COMPOSE/WEBVIEW/etc.), confidence, and evidence. ' +
     'Call this early to understand which analysis approach to use.',
     {},
-    async () => {
+    async (_args, extra) => {
+      const signal = getRuntimeToolSignal(extra);
+      throwIfTraceProcessorQueryCancelled(signal);
       const producer = createEvidenceProducerContext(
         'detect_architecture',
         {},
         localize(outputLanguage, '检测渲染架构，确定后续分析路径。', 'Detect rendering architecture to choose the later analysis path.'),
       );
       try {
-        const payload = await detectArchitecturePayload();
+        const payload = await detectArchitecturePayload(signal);
         return {
           content: [{
             type: 'text' as const,
@@ -2317,6 +2349,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
           }],
         };
       } catch (err) {
+        rethrowIfTraceProcessorQueryCancelled(err);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({
             success: false,
@@ -4307,7 +4340,9 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
         'When true, returns column statistics + sample rows instead of full results. Default: false.'
       ),
     },
-    async ({ trace, sql, summary }) => {
+    async ({ trace, sql, summary }, extra) => {
+      const signal = getRuntimeToolSignal(extra);
+      throwIfTraceProcessorQueryCancelled(signal);
       const planError = requirePlan('execute_sql_on');
       if (planError) {
         return { content: [{ type: 'text' as const, text: planError }] };
@@ -4337,6 +4372,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
           targetTraceId,
           sql,
           trace,
+          signal,
         );
         const processIdentityWarning = rawSqlProcessIdentityWarning(normalizedSql);
         const truncated = result.rows.length > 200;
@@ -4430,6 +4466,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
         }));
         return { content: [{ type: 'text' as const, text: consumeWatchdogWarning(success ? text + getReasoningNudge() : text) }] };
       } catch (e: any) {
+        rethrowIfTraceProcessorQueryCancelled(e);
         const traceProvenance = buildTraceProcessorQueryProvenance({
           traceId: targetTraceId,
           traceSide: trace,
@@ -4470,7 +4507,9 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
         'Parameters passed to both skill executions. Common: { process_name, start_ts, end_ts }'
       ),
     },
-    async ({ skillId, params }) => {
+    async ({ skillId, params }, extra) => {
+      const signal = getRuntimeToolSignal(extra);
+      throwIfTraceProcessorQueryCancelled(signal);
       const planError = requirePlan('compare_skill');
       if (planError) {
         return { content: [{ type: 'text' as const, text: planError }] };
@@ -4511,8 +4550,8 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
           traceSide: 'reference',
         });
         const [currentResult, refResult] = await Promise.all([
-          skillExecutor.execute(skillId, traceId, effectiveParams, { __traceSide: 'current' }),
-          skillExecutor.execute(skillId, referenceTraceId, refParams, { __traceSide: 'reference' }),
+          skillExecutor.execute(skillId, traceId, effectiveParams, { __traceSide: 'current', signal }),
+          skillExecutor.execute(skillId, referenceTraceId, refParams, { __traceSide: 'reference', signal }),
         ]);
         const compareDuration = Date.now() - compareStart;
 
@@ -4606,6 +4645,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
 
         return { content: [{ type: 'text' as const, text: consumeWatchdogWarning(text + getReasoningNudge()) }] };
       } catch (e: any) {
+        rethrowIfTraceProcessorQueryCancelled(e);
         return { content: [{ type: 'text' as const, text: JSON.stringify({ success: false, error: e.message }) }] };
       }
     },

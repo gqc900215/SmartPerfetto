@@ -79,6 +79,10 @@ import type {
   ProcessIdentityResolution,
   ProcessIdentityTarget,
 } from '../processIdentity/types';
+import {
+  rethrowIfTraceProcessorQueryCancelled,
+  throwIfTraceProcessorQueryCancelled,
+} from '../traceProcessorCancellation';
 
 // =============================================================================
 // Layered Result Types
@@ -140,6 +144,26 @@ export interface LayeredResult {
   stepResults?: StepResult[];
   /** YAML 中标记为 synthesize: true 的步骤数据，用于最终总结 */
   synthesizeData?: SynthesizeData[];
+}
+
+function getSkillExecutionSignal(inherited: Record<string, any> | undefined): AbortSignal | undefined {
+  const signal = inherited?.signal;
+  if (
+    signal &&
+    typeof signal === 'object' &&
+    typeof (signal as AbortSignal).aborted === 'boolean' &&
+    typeof (signal as AbortSignal).addEventListener === 'function'
+  ) {
+    return signal as AbortSignal;
+  }
+  return undefined;
+}
+
+function mergeInheritedWithSignal(
+  inherited: Record<string, any>,
+  signal?: AbortSignal,
+): Record<string, any> {
+  return signal ? { ...inherited, signal } : inherited;
 }
 
 /**
@@ -1064,6 +1088,21 @@ export class SkillExecutor {
     this.skillRegistry = new Map();
   }
 
+  private queryTraceProcessor(
+    traceId: string,
+    sql: string,
+    options: Record<string, any> = {},
+    signal?: AbortSignal,
+  ): Promise<any> {
+    const queryOptions = {
+      ...options,
+      ...(signal ? { signal } : {}),
+    };
+    return Object.keys(queryOptions).length > 0
+      ? this.traceProcessor.query(traceId, sql, queryOptions)
+      : this.traceProcessor.query(traceId, sql);
+  }
+
   /**
    * Set the SQL fragment registry (loaded by SkillRegistry).
    * Fragments are reusable CTE definitions injected into step SQL at runtime.
@@ -1344,6 +1383,7 @@ export class SkillExecutor {
         };
       }
     } catch (error: any) {
+      rethrowIfTraceProcessorQueryCancelled(error);
       resolution = {
         status: 'unresolved',
         requestedName: target.requestedName,
@@ -1469,20 +1509,31 @@ export class SkillExecutor {
    * Note: some trace processor builds treat INCLUDE as statement-scoped, so
    * SQL execution still prepends INCLUDE per-step for determinism.
    */
-  private async resolveAvailableModules(traceId: string, modules: string[]): Promise<string[]> {
+  private async resolveAvailableModules(
+    traceId: string,
+    modules: string[],
+    signal?: AbortSignal,
+  ): Promise<string[]> {
     const available: string[] = [];
     for (const module of modules) {
+      throwIfTraceProcessorQueryCancelled(signal);
       try {
-        const includeResult = await this.traceProcessor.query(traceId, `INCLUDE PERFETTO MODULE ${module};`, {
-          priority: 'p2',
-          suppressErrorLog: true,
-        });
+        const includeResult = await this.queryTraceProcessor(
+          traceId,
+          `INCLUDE PERFETTO MODULE ${module};`,
+          {
+            priority: 'p2',
+            suppressErrorLog: true,
+          },
+          signal,
+        );
         if ((includeResult as any)?.error) {
           logger.debug('SkillExecutor', `Prerequisite module not available: ${module}`);
           continue;
         }
         available.push(module);
-      } catch {
+      } catch (error) {
+        rethrowIfTraceProcessorQueryCancelled(error);
         logger.debug('SkillExecutor', `Prerequisite module not available: ${module}`);
       }
     }
@@ -1509,6 +1560,8 @@ export class SkillExecutor {
     inherited: Record<string, any> = {}
   ): Promise<SkillExecutionResult> {
     const startTime = Date.now();
+    const signal = getSkillExecutionSignal(inherited);
+    throwIfTraceProcessorQueryCancelled(signal);
     const traceSide = this.resolveTraceSide(inherited);
 
     const skill = this.skillRegistry.get(skillId);
@@ -1571,12 +1624,13 @@ export class SkillExecutor {
 
     // 仅注入可用模块，避免未知模块导致整条 SQL 失败
     if (prerequisiteModules.length > 0) {
-      moduleIncludes = await this.resolveAvailableModules(traceId, prerequisiteModules);
+      moduleIncludes = await this.resolveAvailableModules(traceId, prerequisiteModules, signal);
     }
 
     // 创建执行上下文 (use validated.params with coerced types and defaults)
     const context: SkillExecutionContext = {
       traceId,
+      signal,
       params: validated.params,
       inherited: gate.inherited,
       results: {},
@@ -1585,7 +1639,7 @@ export class SkillExecutor {
     }
 
     // 检查表依赖
-    const prereqCheck = await this.checkPrerequisites(skill, traceId);
+    const prereqCheck = await this.checkPrerequisites(skill, traceId, signal);
     if (!prereqCheck.success) {
       return {
         skillId,
@@ -1727,6 +1781,7 @@ export class SkillExecutor {
       };
 
     } catch (error: any) {
+      rethrowIfTraceProcessorQueryCancelled(error);
       this.emit({
         type: 'skill_error',
         skillId,
@@ -1842,6 +1897,7 @@ export class SkillExecutor {
     }
 
     for (const step of skill.steps) {
+      throwIfTraceProcessorQueryCancelled(context.signal);
       const stepResult = await this.executeStep(step, context, skillId);
 
       // Collect synthesize-marked data for downstream summarization (execute path parity).
@@ -2373,6 +2429,8 @@ export class SkillExecutor {
     context: Partial<SkillExecutionContext>
   ): Promise<LayeredResult> {
     const startTime = Date.now();
+    const signal = context.signal || getSkillExecutionSignal(context.inherited);
+    throwIfTraceProcessorQueryCancelled(signal);
 
     // Validate input
     if (!skill) {
@@ -2414,6 +2472,7 @@ export class SkillExecutor {
     // Create execution context
     const execContext: SkillExecutionContext = {
       traceId,
+      signal,
       params: validated.params,
       inherited: gate.inherited,
       results: {},
@@ -2422,7 +2481,11 @@ export class SkillExecutor {
     };
 
     if (execContext.traceId && prerequisiteModules.length > 0) {
-      execContext.moduleIncludes = await this.resolveAvailableModules(execContext.traceId, prerequisiteModules);
+      execContext.moduleIncludes = await this.resolveAvailableModules(
+        execContext.traceId,
+        prerequisiteModules,
+        signal,
+      );
     }
 
     // Execute all steps and collect synthesize-marked data
@@ -2431,6 +2494,7 @@ export class SkillExecutor {
 
     if (skill.steps) {
       for (let i = 0; i < skill.steps.length; i++) {
+        throwIfTraceProcessorQueryCancelled(execContext.signal);
         const step = skill.steps[i];
         const stepResult = await this.executeStep(step, execContext, skill.name);
         const layerStepResult = stepResult.stepType === 'skill'
@@ -2570,6 +2634,7 @@ export class SkillExecutor {
     context: SkillExecutionContext
   ): Promise<StepResult> {
     const startTime = Date.now();
+    throwIfTraceProcessorQueryCancelled(context.signal);
 
     if (!skill.sql) {
       return {
@@ -2587,7 +2652,7 @@ export class SkillExecutor {
     );
 
     try {
-      const result = await this.traceProcessor.query(context.traceId, sql);
+      const result = await this.queryTraceProcessor(context.traceId, sql, {}, context.signal);
 
       if (result.error) {
         return {
@@ -2609,6 +2674,7 @@ export class SkillExecutor {
       };
 
     } catch (error: any) {
+      rethrowIfTraceProcessorQueryCancelled(error);
       return {
         stepId: 'root',
         stepType: 'atomic',
@@ -2628,6 +2694,7 @@ export class SkillExecutor {
     parentSkillId: string
   ): Promise<StepResult> {
     const startTime = Date.now();
+    throwIfTraceProcessorQueryCancelled(context.signal);
 
     // 检查步骤的条件限制
     if ('condition' in step && typeof (step as any).condition === 'string') {
@@ -2711,6 +2778,7 @@ export class SkillExecutor {
           }
       }
     } catch (error: any) {
+      rethrowIfTraceProcessorQueryCancelled(error);
       const failedStep = step as SkillStep;
       result = {
         stepId: failedStep.id,
@@ -2739,6 +2807,7 @@ export class SkillExecutor {
     context: SkillExecutionContext
   ): Promise<StepResult> {
     const startTime = Date.now();
+    throwIfTraceProcessorQueryCancelled(context.signal);
     let substitutedSql = substituteVariables(step.sql, context);
 
     // Inject SQL fragments if declared on this step
@@ -2752,7 +2821,7 @@ export class SkillExecutor {
     );
 
     try {
-      const result = await this.traceProcessor.query(context.traceId, sql);
+      const result = await this.queryTraceProcessor(context.traceId, sql, {}, context.signal);
 
       if (result.error) {
         if (step.optional) {
@@ -2785,6 +2854,7 @@ export class SkillExecutor {
       };
 
     } catch (error: any) {
+      rethrowIfTraceProcessorQueryCancelled(error);
       if (step.optional) {
         return {
           stepId: step.id,
@@ -2804,7 +2874,8 @@ export class SkillExecutor {
    */
   private async checkPrerequisites(
     skill: SkillDefinition,
-    traceId: string
+    traceId: string,
+    signal?: AbortSignal,
   ): Promise<{ success: boolean; error?: string }> {
     if (!skill.prerequisites) return { success: true };
 
@@ -2835,7 +2906,7 @@ export class SkillExecutor {
         WHERE type IN ('table', 'view') AND name IN (${tableList})
       `;
 
-      const result = await this.traceProcessor.query(traceId, query);
+      const result = await this.queryTraceProcessor(traceId, query, {}, signal);
       const existingTables = new Set<string>();
 
       // 处理查询结果（兼容多种返回结构）
@@ -2872,6 +2943,7 @@ export class SkillExecutor {
 
       return { success: true };
     } catch (e: any) {
+      rethrowIfTraceProcessorQueryCancelled(e);
       console.error(`[SkillExecutor] Failed to check prerequisites: ${e.message}`);
       //为了健壮性，查询失败时不阻止执行，可能是 traceProcessor 问题
       return { success: true };
@@ -2904,7 +2976,10 @@ export class SkillExecutor {
       step.skill,
       context.traceId,
       params,
-      { ...context.inherited, ...context.variables }
+      mergeInheritedWithSignal(
+        { ...context.inherited, ...context.variables },
+        context.signal,
+      )
     );
 
     return {
@@ -3537,6 +3612,7 @@ export class SkillExecutor {
         executionTimeMs: Date.now() - startTime,
       };
     } catch (error: any) {
+      rethrowIfTraceProcessorQueryCancelled(error);
       return {
         stepId: step.id,
         stepType: 'pipeline',

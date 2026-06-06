@@ -859,6 +859,7 @@ export class OpenAIRuntime extends EventEmitter implements IOrchestrator {
           const stream = await runner.run(agent, currentInput, {
             stream: true,
             maxTurns: quickMode ? config.quickMaxTurns : config.maxTurns,
+            context: { signal: controller.signal },
             signal: controller.signal,
             ...(currentPreviousResponseId
               ? { previousResponseId: currentPreviousResponseId }

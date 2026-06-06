@@ -7,6 +7,10 @@ import {
   decodeQueryResult,
   encodeQueryArgs,
 } from './traceProcessorProtobuf';
+import {
+  createTraceProcessorQueryCancelledError,
+  throwIfTraceProcessorQueryCancelled,
+} from './traceProcessorCancellation';
 
 export interface TraceProcessorHttpRpcRequest {
   hostname?: string;
@@ -14,6 +18,7 @@ export interface TraceProcessorHttpRpcRequest {
   path?: '/query' | '/status';
   body: Buffer;
   timeoutMs: number;
+  signal?: AbortSignal;
 }
 
 export interface TraceProcessorHttpRpcSqlRequest {
@@ -21,6 +26,7 @@ export interface TraceProcessorHttpRpcSqlRequest {
   port: number;
   sql: string;
   timeoutMs: number;
+  signal?: AbortSignal;
 }
 
 export interface TraceProcessorHttpRpcSqlResult {
@@ -33,6 +39,7 @@ export interface TraceProcessorHttpRpcSqlResult {
 export async function executeTraceProcessorHttpRpcRaw(
   request: TraceProcessorHttpRpcRequest,
 ): Promise<Buffer> {
+  throwIfTraceProcessorQueryCancelled(request.signal);
   const hostname = request.hostname || '127.0.0.1';
   const path = request.path || '/query';
 
@@ -40,11 +47,16 @@ export async function executeTraceProcessorHttpRpcRaw(
     let settled = false;
     let req: http.ClientRequest | null = null;
     let wallClockTimer: NodeJS.Timeout | undefined;
+    const onAbort = (): void => {
+      req?.destroy();
+      finish(createTraceProcessorQueryCancelledError(request.signal?.reason));
+    };
 
     const finish = (error: Error | null, body?: Buffer): void => {
       if (settled) return;
       settled = true;
       clearTimeout(wallClockTimer);
+      request.signal?.removeEventListener('abort', onAbort);
       if (error) {
         reject(error);
       } else {
@@ -58,6 +70,12 @@ export async function executeTraceProcessorHttpRpcRaw(
     }, request.timeoutMs);
     if (typeof (wallClockTimer as any).unref === 'function') {
       (wallClockTimer as any).unref();
+    }
+
+    request.signal?.addEventListener('abort', onAbort, { once: true });
+    if (request.signal?.aborted) {
+      onAbort();
+      return;
     }
 
     req = http.request({
@@ -107,6 +125,7 @@ export async function executeTraceProcessorHttpRpcSql(
     path: '/query',
     body: encodeQueryArgs(request.sql),
     timeoutMs: request.timeoutMs,
+    signal: request.signal,
   });
   const parsed = decodeQueryResult(response);
   return {

@@ -22,6 +22,10 @@ import {
 import { createSkillExecutor } from '../../services/skillEngine/skillExecutor';
 import { ensureSkillRegistryInitialized, skillRegistry } from '../../services/skillEngine/skillLoader';
 import { parseCandidates } from '../../types/teaching.types';
+import {
+  rethrowIfTraceProcessorQueryCancelled,
+  throwIfTraceProcessorQueryCancelled,
+} from '../../services/traceProcessorCancellation';
 
 // =============================================================================
 // Pipeline ID -> ArchitectureInfo.type mapping
@@ -61,7 +65,9 @@ export async function detectArchitectureViaSkill(
   traceProcessorService: any,
   traceId: string,
   packageName?: string,
+  signal?: AbortSignal,
 ): Promise<ArchitectureInfo> {
+  throwIfTraceProcessorQueryCancelled(signal);
   try {
     const executor = createSkillExecutor(traceProcessorService);
     await ensureSkillRegistryInitialized();
@@ -70,7 +76,7 @@ export async function detectArchitectureViaSkill(
 
     const result = await executor.execute('rendering_pipeline_detection', traceId, {
       package: packageName || '',
-    });
+    }, { signal });
 
     if (!result.success) {
       console.warn('[detectArchitectureViaSkill] Skill failed:', result.error);
@@ -139,6 +145,7 @@ export async function detectArchitectureViaSkill(
     console.log(`[detectArchitectureViaSkill] Detected: ${type} (${pipelineId}) confidence=${confidence.toFixed(2)}`);
     return info;
   } catch (err) {
+    rethrowIfTraceProcessorQueryCancelled(err);
     console.warn('[detectArchitectureViaSkill] Failed, returning default:', (err as Error).message);
     return createDefaultResult();
   }
@@ -199,6 +206,7 @@ export class ArchitectureDetector {
       context.traceProcessorService,
       context.traceId,
       context.packageName,
+      context.signal,
     );
   }
 }

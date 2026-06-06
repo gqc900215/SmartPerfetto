@@ -192,6 +192,7 @@ describe('experimental Pi agent-core runtime contract', () => {
       runtimeKind: EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND,
     });
     const updates: unknown[] = [];
+    const controller = new AbortController();
 
     expect(tool).toMatchObject({
       name: spec.name,
@@ -208,7 +209,7 @@ describe('experimental Pi agent-core runtime contract', () => {
     await expect(tool.execute(
       'call-1',
       { sql: 'select 1', params: '{"pid":123}' },
-      undefined,
+      controller.signal,
       (update) => updates.push(update),
     )).resolves.toMatchObject({
       content: [{ type: 'text', text: '42' }],
@@ -218,6 +219,7 @@ describe('experimental Pi agent-core runtime contract', () => {
       expect.objectContaining({
         runtime: EXPERIMENTAL_PI_AGENT_CORE_RUNTIME_KIND,
         toolCallId: 'call-1',
+        signal: controller.signal,
       }),
     );
     expect(updates).toEqual([

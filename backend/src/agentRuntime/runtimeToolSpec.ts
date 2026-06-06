@@ -13,9 +13,20 @@ type ClaudeSdkToolHandler = SdkMcpToolDefinition['handler'];
 export type RuntimeToolResult = Awaited<ReturnType<ClaudeSdkToolHandler>>;
 export type RuntimeToolAnnotations = NonNullable<SdkMcpToolDefinition['annotations']>;
 
+export interface RuntimeToolExtra {
+  runtime?: string;
+  toolCallId?: string;
+  signal?: AbortSignal;
+  [key: string]: unknown;
+}
+
+export function normalizeRuntimeToolExtra(extra: unknown): RuntimeToolExtra {
+  return extra && typeof extra === 'object' ? extra as RuntimeToolExtra : {};
+}
+
 export type RuntimeToolHandler = (
   args: Record<string, unknown>,
-  extra: unknown,
+  extra: RuntimeToolExtra,
 ) => Promise<RuntimeToolResult>;
 
 export interface SharedToolSpec {
@@ -34,7 +45,7 @@ export interface ClaudeSdkToolLike {
   description: string;
   inputSchema: z.ZodRawShape;
   annotations?: RuntimeToolAnnotations;
-  handler: (args: Record<string, unknown>, extra: unknown) => Promise<RuntimeToolResult>;
+  handler: (args: Record<string, unknown>, extra: RuntimeToolExtra) => Promise<RuntimeToolResult>;
 }
 
 export function isClaudeSdkToolLike(value: unknown): value is ClaudeSdkToolLike {
@@ -74,7 +85,10 @@ export function createClaudeSdkToolFromSharedSpec(
     spec.name,
     spec.description,
     spec.inputSchema,
-    async (args, extra) => spec.handler(args as Record<string, unknown>, extra),
+    async (args, extra) => spec.handler(
+      args as Record<string, unknown>,
+      normalizeRuntimeToolExtra(extra),
+    ),
     spec.annotations ? { annotations: spec.annotations } : undefined,
   );
   return Object.assign(sdkTool, {

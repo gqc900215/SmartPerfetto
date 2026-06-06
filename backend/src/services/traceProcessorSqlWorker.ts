@@ -14,6 +14,12 @@ import {
   executeTraceProcessorHttpRpcRaw,
   type TraceProcessorHttpRpcRequest,
 } from './traceProcessorHttpRpcClient';
+import {
+  createTraceProcessorQueryCancelledError,
+  isTraceProcessorQueryCancelledError,
+  raceWithTraceProcessorCancellation,
+  throwIfTraceProcessorQueryCancelled,
+} from './traceProcessorCancellation';
 import type { QueryResult } from './workingTraceProcessor';
 
 const IS_TEST_ENV = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;
@@ -24,6 +30,7 @@ export interface TraceProcessorQueryOptions {
   priority?: TraceProcessorQueryPriority;
   timeoutMs?: number;
   suppressErrorLog?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface TraceProcessorSqlWorkerOptions {
@@ -40,6 +47,8 @@ interface QueueTask {
   body: Buffer;
   priority: TraceProcessorQueryPriority;
   timeoutMs: number;
+  signal?: AbortSignal;
+  onAbort?: () => void;
   resolve: (body: Buffer) => void;
   reject: (error: Error) => void;
 }
@@ -47,6 +56,8 @@ interface QueueTask {
 interface PendingWorkerRequest {
   resolve: (body: Buffer) => void;
   reject: (error: Error) => void;
+  signal?: AbortSignal;
+  onAbort?: () => void;
 }
 
 const PRIORITY_ORDER: TraceProcessorQueryPriority[] = ['p0', 'p1', 'p2'];
@@ -134,6 +145,9 @@ export class TraceProcessorSqlWorker {
         ...(parsed.error ? { error: parsed.error } : {}),
       };
     } catch (error: any) {
+      if (isTraceProcessorQueryCancelledError(error)) {
+        throw error;
+      }
       return {
         columns: [],
         rows: [],
@@ -147,20 +161,36 @@ export class TraceProcessorSqlWorker {
     if (this.destroyed) {
       return Promise.reject(new Error(`SQL worker for processor ${this.processorId} is destroyed`));
     }
+    try {
+      throwIfTraceProcessorQueryCancelled(options.signal);
+    } catch (error) {
+      return Promise.reject(error);
+    }
 
     const priority = normalizeTraceProcessorQueryPriority(options.priority);
     const timeoutMs = options.timeoutMs ?? traceProcessorConfig.queryTimeoutMs;
     const taskId = this.nextTaskId++;
 
     return new Promise((resolve, reject) => {
-      this.queues[priority].push({
+      const task: QueueTask = {
         id: taskId,
         body,
         priority,
         timeoutMs,
+        signal: options.signal,
         resolve,
         reject,
-      });
+      };
+      if (options.signal) {
+        task.onAbort = () => this.cancelQueuedTask(task);
+        options.signal.addEventListener('abort', task.onAbort, { once: true });
+        if (options.signal.aborted) {
+          this.cleanupTaskAbortListener(task);
+          reject(createTraceProcessorQueryCancelledError(options.signal.reason));
+          return;
+        }
+      }
+      this.queues[priority].push(task);
       this.drain();
     });
   }
@@ -170,9 +200,13 @@ export class TraceProcessorSqlWorker {
     const error = new Error(`SQL worker for processor ${this.processorId} was destroyed`);
     for (const priority of PRIORITY_ORDER) {
       const tasks = this.queues[priority].splice(0);
-      for (const task of tasks) task.reject(error);
+      for (const task of tasks) {
+        this.cleanupTaskAbortListener(task);
+        task.reject(error);
+      }
     }
     for (const pending of this.pendingWorkerRequests.values()) {
+      this.cleanupPendingAbortListener(pending);
       pending.reject(error);
     }
     this.pendingWorkerRequests.clear();
@@ -199,21 +233,29 @@ export class TraceProcessorSqlWorker {
   private nextTask(): QueueTask | undefined {
     for (const priority of PRIORITY_ORDER) {
       const task = this.queues[priority].shift();
-      if (task) return task;
+      if (task) {
+        this.cleanupTaskAbortListener(task);
+        return task;
+      }
     }
     return undefined;
   }
 
   private async runTask(task: QueueTask): Promise<Buffer> {
+    throwIfTraceProcessorQueryCancelled(task.signal);
     const request: TraceProcessorHttpRpcRequest = {
       hostname: this.hostname,
       port: this.port,
       body: task.body,
       timeoutMs: task.timeoutMs,
+      signal: task.signal,
     };
 
     if (this.forceInline || this.rawExecutor) {
-      return (this.rawExecutor || executeTraceProcessorHttpRpcRaw)(request);
+      return raceWithTraceProcessorCancellation(
+        (this.rawExecutor || executeTraceProcessorHttpRpcRaw)(request),
+        task.signal,
+      );
     }
 
     return this.postToWorker(task);
@@ -232,6 +274,7 @@ export class TraceProcessorSqlWorker {
       const pending = this.pendingWorkerRequests.get(message.id);
       if (!pending) return;
       this.pendingWorkerRequests.delete(message.id);
+      this.cleanupPendingAbortListener(pending);
       if (message.ok) {
         pending.resolve(Buffer.from(message.body || []));
       } else {
@@ -259,7 +302,25 @@ export class TraceProcessorSqlWorker {
   private postToWorker(task: QueueTask): Promise<Buffer> {
     const worker = this.ensureWorker();
     return new Promise((resolve, reject) => {
-      this.pendingWorkerRequests.set(task.id, { resolve, reject });
+      const pending: PendingWorkerRequest = {
+        resolve,
+        reject,
+        signal: task.signal,
+      };
+      this.pendingWorkerRequests.set(task.id, pending);
+      if (task.signal) {
+        pending.onAbort = () => {
+          this.pendingWorkerRequests.delete(task.id);
+          this.cleanupPendingAbortListener(pending);
+          worker.postMessage({ id: task.id, cancel: true });
+          reject(createTraceProcessorQueryCancelledError(task.signal?.reason));
+        };
+        task.signal.addEventListener('abort', pending.onAbort, { once: true });
+        if (task.signal.aborted) {
+          pending.onAbort();
+          return;
+        }
+      }
       worker.postMessage({
         id: task.id,
         hostname: this.hostname,
@@ -272,8 +333,33 @@ export class TraceProcessorSqlWorker {
 
   private rejectPendingWorkerRequests(error: Error): void {
     for (const pending of this.pendingWorkerRequests.values()) {
+      this.cleanupPendingAbortListener(pending);
       pending.reject(error);
     }
     this.pendingWorkerRequests.clear();
+  }
+
+  private cancelQueuedTask(task: QueueTask): void {
+    for (const priority of PRIORITY_ORDER) {
+      const queue = this.queues[priority];
+      const index = queue.findIndex(candidate => candidate.id === task.id);
+      if (index < 0) continue;
+      queue.splice(index, 1);
+      this.cleanupTaskAbortListener(task);
+      task.reject(createTraceProcessorQueryCancelledError(task.signal?.reason));
+      return;
+    }
+  }
+
+  private cleanupTaskAbortListener(task: QueueTask): void {
+    if (!task.signal || !task.onAbort) return;
+    task.signal.removeEventListener('abort', task.onAbort);
+    task.onAbort = undefined;
+  }
+
+  private cleanupPendingAbortListener(pending: PendingWorkerRequest): void {
+    if (!pending.signal || !pending.onAbort) return;
+    pending.signal.removeEventListener('abort', pending.onAbort);
+    pending.onAbort = undefined;
   }
 }

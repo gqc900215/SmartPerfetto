@@ -24,6 +24,10 @@ import {
   type TraceProcessorQueryOptions,
 } from './traceProcessorSqlWorker';
 import {
+  raceWithTraceProcessorCancellation,
+  throwIfTraceProcessorQueryCancelled,
+} from './traceProcessorCancellation';
+import {
   assertTraceProcessorAdmission,
   getTraceProcessorRamBudgetStats,
   type TraceProcessorRamBudgetStats,
@@ -633,6 +637,7 @@ export class WorkingTraceProcessor extends EventEmitter implements TraceProcesso
   }
 
   async query(sql: string, options: TraceProcessorQueryOptions = {}): Promise<QueryResult> {
+    throwIfTraceProcessorQueryCancelled(options.signal);
     if (this.status !== 'ready') {
       throw new Error(`Trace processor not ready (status: ${this.status})`);
     }
@@ -651,14 +656,16 @@ export class WorkingTraceProcessor extends EventEmitter implements TraceProcesso
       this._criticalModulesLoadPromise = this._loadCriticalModulesSequentially();
     }
     if (this._criticalModulesLoadPromise) {
-      await this._criticalModulesLoadPromise;
+      await raceWithTraceProcessorCancellation(this._criticalModulesLoadPromise, options.signal);
     }
+    throwIfTraceProcessorQueryCancelled(options.signal);
 
     logger.debug('TraceProcessor', `Executing HTTP query: ${sql.substring(0, 100)}...`);
     return this.enqueueHttpQuery(sql, options);
   }
 
   async queryRaw(body: Buffer, options: TraceProcessorQueryOptions = {}): Promise<Buffer> {
+    throwIfTraceProcessorQueryCancelled(options.signal);
     if (this.status !== 'ready') {
       throw new Error(`Trace processor not ready (status: ${this.status})`);
     }
@@ -1203,6 +1210,7 @@ export class ExternalRpcProcessor extends EventEmitter implements TraceProcessor
   }
 
   async query(sql: string, options: TraceProcessorQueryOptions = {}): Promise<QueryResult> {
+    throwIfTraceProcessorQueryCancelled(options.signal);
     // Sequential stdlib loading on first query (same pattern as WorkingTraceProcessor).
     if (!this._criticalModulesLoaded
         && this._criticalModulesLoadFailures < ExternalRpcProcessor.MAX_STDLIB_LOAD_RETRIES
@@ -1210,13 +1218,15 @@ export class ExternalRpcProcessor extends EventEmitter implements TraceProcessor
       this._criticalModulesLoadPromise = this._loadCriticalModulesSequentially();
     }
     if (this._criticalModulesLoadPromise) {
-      await this._criticalModulesLoadPromise;
+      await raceWithTraceProcessorCancellation(this._criticalModulesLoadPromise, options.signal);
     }
+    throwIfTraceProcessorQueryCancelled(options.signal);
 
     return this.enqueueRawQuery(sql, options);
   }
 
   async queryRaw(body: Buffer, options: TraceProcessorQueryOptions = {}): Promise<Buffer> {
+    throwIfTraceProcessorQueryCancelled(options.signal);
     this._activeQueries++;
     try {
       return await this.sqlWorker.enqueueRaw(body, options);

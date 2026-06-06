@@ -69,7 +69,12 @@ import {
   createRuntimeSkillNotesBudget,
   knowledgeScopeFromAnalysisOptions,
 } from './runtimeCommon';
-import { createJsonSchemaFromZodRawShape, normalizeRuntimeToolArgs } from './runtimeToolSpec';
+import {
+  createJsonSchemaFromZodRawShape,
+  normalizeRuntimeToolArgs,
+  normalizeRuntimeToolExtra,
+} from './runtimeToolSpec';
+import { isTraceProcessorQueryCancelledError } from '../services/traceProcessorCancellation';
 
 export const EXPERIMENTAL_OPENCODE_RUNTIME_KIND = 'experimental-opencode' as const;
 export const OPENCODE_RUNTIME_KIND = 'opencode' as const;
@@ -183,6 +188,7 @@ interface OpenCodeActiveSession {
   server?: OpenCodeServerHandle;
   client?: OpenCodeClient;
   closeBridge?: () => Promise<void>;
+  abortController?: AbortController;
   aborted: boolean;
 }
 
@@ -607,6 +613,10 @@ function rpcError(
 
 type OpenCodeBridgeUpdateEmitter = (update: StreamingUpdate) => void;
 
+interface OpenCodeBridgeDispatchOptions {
+  getSignal?: () => AbortSignal | undefined;
+}
+
 function summarizeOpenCodeToolResult(result: unknown): string {
   if (typeof result === 'string') {
     return result.length > 2000 ? `${result.slice(0, 2000)}...` : result;
@@ -634,6 +644,7 @@ export async function dispatchOpenCodeBridgeRequest(
   definitions: readonly McpToolDefinition[],
   req: JsonRpcRequest,
   emitUpdate?: OpenCodeBridgeUpdateEmitter,
+  options: OpenCodeBridgeDispatchOptions = {},
 ): Promise<JsonRpcResponse | null> {
   if (req.id === undefined) return null;
   const id = req.id;
@@ -688,7 +699,10 @@ export async function dispatchOpenCodeBridgeRequest(
       });
       const result = await definition.shared.handler(
         args,
-        { runtime: OPENCODE_RUNTIME_KIND },
+        normalizeRuntimeToolExtra({
+          runtime: OPENCODE_RUNTIME_KIND,
+          signal: options.getSignal?.(),
+        }),
       );
       emitUpdate?.({
         type: 'agent_response',
@@ -700,6 +714,9 @@ export async function dispatchOpenCodeBridgeRequest(
       });
       return { jsonrpc: '2.0', id, result };
     } catch (err) {
+      if (isTraceProcessorQueryCancelledError(err)) {
+        throw err;
+      }
       emitUpdate?.({
         type: 'agent_response',
         content: {
@@ -727,6 +744,7 @@ interface OpenCodeMcpBridgeHandle {
 function startOpenCodeMcpBridge(
   definitions: readonly McpToolDefinition[],
   emitUpdate?: OpenCodeBridgeUpdateEmitter,
+  options: OpenCodeBridgeDispatchOptions = {},
 ): Promise<OpenCodeMcpBridgeHandle> {
   const token = crypto.randomBytes(24).toString('hex');
   const server = net.createServer((socket) => {
@@ -746,10 +764,19 @@ function startOpenCodeMcpBridge(
             socket.end();
             return;
           }
-          const response = await dispatchOpenCodeBridgeRequest(definitions, envelope.request, emitUpdate);
+          const response = await dispatchOpenCodeBridgeRequest(
+            definitions,
+            envelope.request,
+            emitUpdate,
+            options,
+          );
           if (response) socket.write(`${JSON.stringify(response)}\n`);
           socket.end();
-        } catch {
+        } catch (error) {
+          if (isTraceProcessorQueryCancelledError(error)) {
+            socket.end();
+            return;
+          }
           socket.write(`${JSON.stringify(rpcError(null, RPC_ERROR_CODES.PARSE_ERROR, 'Invalid bridge JSON'))}\n`);
           socket.end();
         }
@@ -1198,6 +1225,7 @@ export class OpenCodeRuntime extends EventEmitter implements IOrchestrator {
     const previousHome = process.env.HOME;
     const previousConfigDir = process.env.OPENCODE_CONFIG_DIR;
     let activeSession: OpenCodeActiveSession | undefined;
+    const abortController = new AbortController();
     try {
       process.env.HOME = homeDir;
       process.env.OPENCODE_CONFIG_DIR = configDir;
@@ -1210,6 +1238,7 @@ export class OpenCodeRuntime extends EventEmitter implements IOrchestrator {
       activeSession = {
         server: opencode.server,
         client: opencode.client,
+        abortController,
         aborted: false,
       };
       this.activeSessions.set(sessionId, activeSession);
@@ -1274,9 +1303,11 @@ export class OpenCodeRuntime extends EventEmitter implements IOrchestrator {
     const sdk = await this.moduleLoader(this.env);
     const modelConfig = resolveOpenCodeModelConfig(this.env, this.selection);
     const prep = await this.prepareAnalysis(query, sessionId, traceId, options);
+    const abortController = new AbortController();
     const bridge = await startOpenCodeMcpBridge(
       prep.toolDefinitions,
       update => this.emitUpdate(update),
+      { getSignal: () => abortController.signal },
     );
     const projectDir = this.env[OPENCODE_PROJECT_DIR_ENV]?.trim()
       || createTempDirectory('smartperfetto-opencode-project-');
@@ -1309,6 +1340,7 @@ export class OpenCodeRuntime extends EventEmitter implements IOrchestrator {
         server: opencode.server,
         client: opencode.client,
         closeBridge: () => bridge.close().catch(() => undefined),
+        abortController,
         aborted: false,
       };
       this.activeSessions.set(sessionId, activeSession);
@@ -1696,6 +1728,7 @@ export class OpenCodeRuntime extends EventEmitter implements IOrchestrator {
     const handle = this.activeSessions.get(sessionId);
     if (!handle) return;
     handle.aborted = true;
+    handle.abortController?.abort();
     if (handle.client?.session.abort && handle.openCodeSessionId) {
       await handle.client.session.abort({
         path: { id: handle.openCodeSessionId },

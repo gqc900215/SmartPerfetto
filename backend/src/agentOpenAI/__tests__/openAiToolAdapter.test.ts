@@ -5,6 +5,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { z } from 'zod';
 import { createOpenAIToolsFromMcpDefinitions } from '../openAiToolAdapter';
+import { createTraceProcessorQueryCancelledError } from '../../services/traceProcessorCancellation';
 
 describe('createOpenAIToolsFromMcpDefinitions', () => {
   it('converts optional Claude MCP Zod fields into OpenAI strict-compatible JSON Schema', async () => {
@@ -46,7 +47,10 @@ describe('createOpenAIToolsFromMcpDefinitions', () => {
       JSON.stringify({ skillId: 'startup_analysis', params: null }),
     );
 
-    expect(handler).toHaveBeenCalledWith({ skillId: 'startup_analysis' }, {});
+    expect(handler).toHaveBeenCalledWith(
+      { skillId: 'startup_analysis' },
+      { runtime: 'openai-agents-sdk', signal: undefined },
+    );
     expect(output).toBe('{"skillId":"startup_analysis"}');
 
     output = await functionTool.invoke(
@@ -59,9 +63,64 @@ describe('createOpenAIToolsFromMcpDefinitions', () => {
 
     expect(handler).toHaveBeenLastCalledWith(
       { skillId: 'startup_analysis', params: { enable_startup_details: false } },
-      {},
+      { runtime: 'openai-agents-sdk', signal: undefined },
     );
     expect(output).toBe('{"skillId":"startup_analysis","params":{"enable_startup_details":false}}');
+  });
+
+  it('passes tool-call AbortSignal from OpenAI run details to shared handlers', async () => {
+    const handler = jest.fn(async (_args: Record<string, unknown>, extra: any) => ({
+      content: [{ type: 'text', text: JSON.stringify({ aborted: extra.signal?.aborted ?? null }) }],
+    }));
+    const [adapted] = createOpenAIToolsFromMcpDefinitions([
+      {
+        name: 'invoke_skill',
+        tool: {
+          name: 'invoke_skill',
+          description: 'Invoke a SmartPerfetto skill',
+          inputSchema: { skillId: z.string() },
+          handler,
+        },
+        exposure: 'core',
+      },
+    ] as any);
+    const functionTool = adapted as any;
+    const detailController = new AbortController();
+    const contextController = new AbortController();
+
+    await functionTool.invoke(
+      { context: { signal: contextController.signal } } as any,
+      JSON.stringify({ skillId: 'startup_analysis' }),
+      { signal: detailController.signal },
+    );
+
+    expect(handler).toHaveBeenCalledWith(
+      { skillId: 'startup_analysis' },
+      { runtime: 'openai-agents-sdk', signal: detailController.signal },
+    );
+  });
+
+  it('rethrows cancellation errors instead of returning model-visible JSON', async () => {
+    const [adapted] = createOpenAIToolsFromMcpDefinitions([
+      {
+        name: 'invoke_skill',
+        tool: {
+          name: 'invoke_skill',
+          description: 'Invoke a SmartPerfetto skill',
+          inputSchema: { skillId: z.string() },
+          handler: jest.fn(async () => {
+            throw createTraceProcessorQueryCancelledError();
+          }),
+        },
+        exposure: 'core',
+      },
+    ] as any);
+    const functionTool = adapted as any;
+
+    await expect(functionTool.invoke(
+      {} as any,
+      JSON.stringify({ skillId: 'startup_analysis' }),
+    )).rejects.toMatchObject({ name: 'AbortError' });
   });
 
   it('exposes OpenAI tools by short MCP names used in system prompts', () => {

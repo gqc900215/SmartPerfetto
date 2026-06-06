@@ -11,20 +11,35 @@ interface WorkerQueryMessage {
   port: number;
   body: Uint8Array;
   timeoutMs: number;
+  cancel?: false;
+}
+
+interface WorkerCancelMessage {
+  id: number;
+  cancel: true;
 }
 
 if (!parentPort) {
   throw new Error('traceProcessorSqlWorkerThread must run inside a worker_thread');
 }
 
-parentPort.on('message', (message: WorkerQueryMessage) => {
+const activeRequests = new Map<number, AbortController>();
+
+parentPort.on('message', (message: WorkerQueryMessage | WorkerCancelMessage) => {
+  if (message.cancel) {
+    activeRequests.get(message.id)?.abort();
+    return;
+  }
   void (async () => {
+    const controller = new AbortController();
+    activeRequests.set(message.id, controller);
     try {
       const body = await executeTraceProcessorHttpRpcRaw({
         hostname: message.hostname,
         port: message.port,
         body: Buffer.from(message.body),
         timeoutMs: message.timeoutMs,
+        signal: controller.signal,
       });
       parentPort!.postMessage({
         id: message.id,
@@ -37,6 +52,8 @@ parentPort.on('message', (message: WorkerQueryMessage) => {
         ok: false,
         error: error?.message || String(error),
       });
+    } finally {
+      activeRequests.delete(message.id);
     }
   })();
 });

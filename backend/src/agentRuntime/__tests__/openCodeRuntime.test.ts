@@ -20,6 +20,7 @@ import {
   type OpenCodeSdkModuleLoader,
 } from '../openCodeRuntime';
 import type { RuntimeFactoryInput } from '../runtimeRegistry';
+import { createTraceProcessorQueryCancelledError } from '../../services/traceProcessorCancellation';
 
 function createFakeRuntimeInput(): RuntimeFactoryInput {
   return {
@@ -265,6 +266,10 @@ describe('experimental OpenCode runtime contract', () => {
 
   it('emits SmartPerfetto tool dispatch and response events from the OpenCode MCP bridge', async () => {
     const updates: any[] = [];
+    const handler = jest.fn(async (args: Record<string, unknown>, extra: any) => ({
+      content: [{ type: 'text', text: `ran ${args.sql} aborted=${extra.signal?.aborted ?? null}` }],
+    }));
+    const controller = new AbortController();
     const response = await dispatchOpenCodeBridgeRequest([
       {
         name: 'smartperfetto_query_trace',
@@ -275,9 +280,7 @@ describe('experimental OpenCode runtime contract', () => {
           description: 'Run a trace query',
           exposure: 'internal',
           inputSchema: {},
-          handler: jest.fn(async (args: Record<string, unknown>) => ({
-            content: [{ type: 'text', text: `ran ${args.sql}` }],
-          })),
+          handler,
         },
       } as any,
     ], {
@@ -288,15 +291,21 @@ describe('experimental OpenCode runtime contract', () => {
         name: 'mcp__smartperfetto__smartperfetto_query_trace',
         arguments: { sql: 'select 1' },
       },
-    }, update => updates.push(update));
+    }, update => updates.push(update), {
+      getSignal: () => controller.signal,
+    });
 
     expect(response).toMatchObject({
       jsonrpc: '2.0',
       id: 'tool-call-1',
       result: {
-        content: [{ type: 'text', text: 'ran select 1' }],
+        content: [{ type: 'text', text: 'ran select 1 aborted=false' }],
       },
     });
+    expect(handler).toHaveBeenCalledWith(
+      { sql: 'select 1' },
+      { runtime: 'opencode', signal: controller.signal },
+    );
     expect(updates).toEqual([
       expect.objectContaining({
         type: 'agent_task_dispatched',
@@ -310,10 +319,37 @@ describe('experimental OpenCode runtime contract', () => {
         type: 'agent_response',
         content: expect.objectContaining({
           taskId: 'tool-call-1',
-          result: 'ran select 1',
+          result: 'ran select 1 aborted=false',
         }),
       }),
     ]);
+  });
+
+  it('rethrows bridge tool cancellation instead of returning a JSON-RPC tool error', async () => {
+    await expect(dispatchOpenCodeBridgeRequest([
+      {
+        name: 'smartperfetto_query_trace',
+        exposure: 'internal',
+        tool: {},
+        shared: {
+          name: 'smartperfetto_query_trace',
+          description: 'Run a trace query',
+          exposure: 'internal',
+          inputSchema: {},
+          handler: jest.fn(async () => {
+            throw createTraceProcessorQueryCancelledError();
+          }),
+        },
+      } as any,
+    ], {
+      jsonrpc: '2.0',
+      id: 'tool-call-cancel',
+      method: 'tools/call',
+      params: {
+        name: 'smartperfetto_query_trace',
+        arguments: { sql: 'select 1' },
+      },
+    })).rejects.toMatchObject({ name: 'AbortError' });
   });
 
   it('treats completed and skipped OpenCode plan phases as closed', () => {

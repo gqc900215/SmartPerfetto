@@ -7,10 +7,12 @@ import type { McpToolDefinition } from '../agentv3/mcpToolRegistry';
 import {
   createJsonSchemaFromZodRawShape,
   normalizeRuntimeToolArgs,
+  normalizeRuntimeToolExtra,
   sharedToolSpecFromClaudeSdkTool,
   stringifyRuntimeToolResult,
   type SharedToolSpec,
 } from '../agentRuntime/runtimeToolSpec';
+import { isTraceProcessorQueryCancelledError } from '../services/traceProcessorCancellation';
 
 function getSharedToolSpec(definition: McpToolDefinition): SharedToolSpec {
   if (definition.shared) return definition.shared;
@@ -41,12 +43,20 @@ export function createOpenAIToolsFromMcpDefinitions(
       description: shared.description,
       parameters: createJsonSchemaFromZodRawShape(shared.inputSchema) as any,
       strict: true,
-      execute: async (args) => {
+      execute: async (args, runContext, details) => {
         const normalizedArgs = normalizeRuntimeToolArgs(args) as Record<string, unknown>;
-        const result = await shared.handler(normalizedArgs, {});
+        const contextSignal = (runContext?.context as { signal?: AbortSignal } | undefined)?.signal;
+        const signal = details?.signal || contextSignal;
+        const result = await shared.handler(normalizedArgs, normalizeRuntimeToolExtra({
+          runtime: 'openai-agents-sdk',
+          signal,
+        }));
         return stringifyRuntimeToolResult(result);
       },
       errorFunction: (_context, error) => {
+        if (isTraceProcessorQueryCancelledError(error)) {
+          throw error;
+        }
         const message = error instanceof Error ? error.message : String(error);
         return JSON.stringify({
           success: false,

@@ -33,10 +33,45 @@ import {
   killOrphanProcessors,
   supportsTraceProcessorCorsOriginsFlag,
 } from '../workingTraceProcessor';
+import { isTraceProcessorQueryCancelledError } from '../traceProcessorCancellation';
 
 // =============================================================================
 // Test Environment Detection
 // =============================================================================
+
+describe('TraceProcessorService cancellation', () => {
+  it('does not wait for shared auto-recovery when the query signal aborts', async () => {
+    const service = new TraceProcessorService(fs.mkdtempSync(path.join(os.tmpdir(), 'sp-tp-cancel-')));
+    const traceId = 'trace-cancel-recovery';
+    const processorKey = (service as any).processorKeyForLease(traceId);
+    (service as any).processors.set(processorKey, {
+      id: 'processor-cancel-recovery',
+      traceId,
+      status: 'error',
+      activeQueries: 0,
+      query: jest.fn(),
+      queryRaw: jest.fn(),
+      destroy: jest.fn(),
+    });
+    (service as any).recoveryInProgress.set(
+      processorKey,
+      new Promise(() => undefined),
+    );
+    const controller = new AbortController();
+    const query = service.query(traceId, 'SELECT 1', {
+      signal: controller.signal,
+    });
+
+    controller.abort();
+
+    try {
+      await query;
+      throw new Error('Expected query to reject with cancellation');
+    } catch (error) {
+      expect(isTraceProcessorQueryCancelledError(error)).toBe(true);
+    }
+  });
+});
 
 // Path to trace_processor_shell binary
 const TRACE_PROCESSOR_PATH = process.env.TRACE_PROCESSOR_PATH ||

@@ -461,6 +461,7 @@ export interface SkillExecutionContext {
   traceId: string;
   packageName?: string;
   vendor?: string;
+  signal?: AbortSignal;
   // 当前 skill 解析后的 prerequisite modules（用于每个 SQL 步骤内自动 INCLUDE）
   moduleIncludes?: string[];
 
