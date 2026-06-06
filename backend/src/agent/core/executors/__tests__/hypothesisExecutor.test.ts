@@ -608,114 +608,16 @@ describe('HypothesisExecutor', () => {
   });
 
   // ===========================================================================
-  // Intervention Mechanism Tests
+  // Clarify Boundary Tests
   // ===========================================================================
 
-  describe('Intervention Mechanism', () => {
-    it('requests intervention when confidence too low', async () => {
+  describe('Clarify boundary', () => {
+    it('does not emit intervention progress for low-confidence analysis', async () => {
       const ctx = createMockExecutionContext();
-
-      executor = new HypothesisExecutor(services, agentRegistry as any, strategyPlanner as any, {
-        confidenceThreshold: 0.8,
-        autoIntervention: true,
-      });
-
       const minimalResponse = createMockAgentResponse({ findings: [] });
       (services.messageBus.dispatchTasksParallel as jest.Mock<any>).mockResolvedValue([minimalResponse]);
 
       ctx.sharedContext.hypotheses = new Map();
-
-      strategyPlanner.planNextIteration.mockResolvedValue({
-        strategy: 'conclude',
-        confidence: 0.3,
-        reasoning: 'Low confidence',
-      });
-
-      const result = await executor.execute(ctx, emitter);
-
-      if (result.interventionRequest) {
-        expect(result.interventionRequest.type).toBe('low_confidence');
-        expect(result.interventionRequest.possibleDirections).toBeDefined();
-        expect(result.pausedForIntervention).toBe(true);
-      }
-    });
-
-    it('requests intervention when ambiguous directions exist', async () => {
-      const ctx = createMockExecutionContext();
-
-      executor = new HypothesisExecutor(services, agentRegistry as any, strategyPlanner as any, {
-        confidenceThreshold: 0.4,
-        autoIntervention: true,
-      });
-
-      ctx.sharedContext.hypotheses = new Map([
-        ['hypo_1', createMockHypothesis({ id: 'hypo_1', description: 'Direction A', confidence: 0.5, status: 'proposed' })],
-        ['hypo_2', createMockHypothesis({ id: 'hypo_2', description: 'Direction B', confidence: 0.48, status: 'proposed' })],
-      ]);
-
-      strategyPlanner.planNextIteration.mockResolvedValue({
-        strategy: 'continue',
-        confidence: 0.5,
-        reasoning: 'Ambiguous',
-      });
-
-      const result = await executor.execute(ctx, emitter);
-
-      const interventionUpdate = emittedUpdates.find(
-        u => u.type === 'progress' && u.content.phase === 'intervention_required'
-      );
-      if (interventionUpdate) {
-        expect(['ambiguity', 'low_confidence']).toContain(interventionUpdate.content.type);
-      }
-    });
-
-    it('includes possible directions in intervention', async () => {
-      const ctx = createMockExecutionContext();
-
-      executor = new HypothesisExecutor(services, agentRegistry as any, strategyPlanner as any, {
-        confidenceThreshold: 0.9,
-        autoIntervention: true,
-      });
-
-      ctx.sharedContext.hypotheses = new Map([
-        ['hypo_1', createMockHypothesis({ description: 'Main thread blocking', confidence: 0.4, status: 'investigating' })],
-      ]);
-
-      const minimalResponse = createMockAgentResponse({ findings: [] });
-      (services.messageBus.dispatchTasksParallel as jest.Mock<any>).mockResolvedValue([minimalResponse]);
-
-      strategyPlanner.planNextIteration.mockResolvedValue({
-        strategy: 'conclude',
-        confidence: 0.3,
-        reasoning: 'Low confidence',
-      });
-
-      const result = await executor.execute(ctx, emitter);
-
-      if (result.interventionRequest) {
-        expect(result.interventionRequest.possibleDirections).toBeDefined();
-        expect(Array.isArray(result.interventionRequest.possibleDirections)).toBe(true);
-        expect(result.interventionRequest.possibleDirections.length).toBeGreaterThan(0);
-
-        for (const direction of result.interventionRequest.possibleDirections) {
-          expect(direction).toHaveProperty('id');
-          expect(direction).toHaveProperty('description');
-          expect(direction).toHaveProperty('confidence');
-        }
-      }
-    });
-
-    it('does not request intervention when autoIntervention is disabled', async () => {
-      const ctx = createMockExecutionContext();
-
-      executor = new HypothesisExecutor(services, agentRegistry as any, strategyPlanner as any, {
-        confidenceThreshold: 0.9,
-        autoIntervention: false,
-      });
-
-      const minimalResponse = createMockAgentResponse({ findings: [] });
-      (services.messageBus.dispatchTasksParallel as jest.Mock<any>).mockResolvedValue([minimalResponse]);
-
       strategyPlanner.planNextIteration.mockResolvedValue({
         strategy: 'conclude',
         confidence: 0.2,
@@ -724,8 +626,39 @@ describe('HypothesisExecutor', () => {
 
       const result = await executor.execute(ctx, emitter);
 
-      expect(result.interventionRequest).toBeUndefined();
-      expect(result.pausedForIntervention).toBeFalsy();
+      expect(result.stopReason).toBeNull();
+      expect(result.rounds).toBe(1);
+      expect(emittedUpdates.some(
+        update => update.type === 'progress' && String(update.content.phase || '').includes('intervention')
+      )).toBe(false);
+    });
+
+    it('keeps ambiguous hypotheses in the normal strategy loop', async () => {
+      const ctx = createMockExecutionContext({ config: { ...createMockExecutionContext().config, maxRounds: 2 } });
+      ctx.sharedContext.hypotheses = new Map([
+        ['hypo_1', createMockHypothesis({ id: 'hypo_1', description: 'Direction A', confidence: 0.5, status: 'proposed' })],
+        ['hypo_2', createMockHypothesis({ id: 'hypo_2', description: 'Direction B', confidence: 0.48, status: 'proposed' })],
+      ]);
+
+      strategyPlanner.planNextIteration
+        .mockResolvedValueOnce({
+          strategy: 'continue',
+          confidence: 0.5,
+          reasoning: 'Ambiguous, continue collecting evidence',
+        })
+        .mockResolvedValueOnce({
+          strategy: 'conclude',
+          confidence: 0.55,
+          reasoning: 'Collected enough evidence',
+        });
+
+      const result = await executor.execute(ctx, emitter);
+
+      expect(result.rounds).toBe(2);
+      expect(strategyPlanner.planNextIteration).toHaveBeenCalledTimes(2);
+      expect(emittedUpdates.some(
+        update => update.type === 'progress' && String(update.content.phase || '').includes('intervention')
+      )).toBe(false);
     });
   });
 

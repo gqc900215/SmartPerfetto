@@ -81,9 +81,9 @@ ways that under-size the hardest milestone.
 
 2. **Draft §5.1 misrepresents `IOrchestrator`.** The shown 5-method interface is
    a fiction. Real surface (`agent/core/orchestratorTypes.ts:167`) is an
-   EventEmitter plus ~13 optional hooks, and the route/session layer consumes
-   most of them: `getInterventionController`, `getProgressTracker` (not even
-   declared on the interface), `getSdkSessionId`, `getSessionNotes`,
+   EventEmitter plus several optional hooks, and the route/session layer consumes
+   most of them: `getProgressTracker` (not even declared on the interface),
+   `getSdkSessionId`, `getSessionNotes`,
    `getSessionPlan`, `getSessionUncertaintyFlags`, `getCachedArchitecture`,
    `restoreArchitectureCache`, `takeSnapshot`, `restoreFromSnapshot`,
    `cleanupSession`, `on`/`emit`/`removeAllListeners`. `AnalysisHarness` must
@@ -242,10 +242,9 @@ AGREE. P2-8 AGREE, with real route implications (`agentRoutes.ts:2308-2313,2468-
 - **Abort/dispose lifecycle**: Claude needs query `close()`, OpenAI uses
   `AbortSignal` + provider close; make async disposal mandatory
   (`claudeRuntime.ts:479-501`, `openAiRuntime.ts:810-817,1048-1053`).
-- **Mid-run intervention** is exposed on the interface and `InterventionController`
-  can pause, but **neither runtime really supports it through the SDK loop today**
-  (`interventionController.ts:202-225,608-658`) — so little is lost by a coarse
-  between-run model.
+- **Mid-run pause** was historically exposed on the interface but neither
+  runtime really supported it through the SDK loop. WS-K removes that surface;
+  user clarification now stays in the normal multi-turn flow.
 - **Snapshot legacy migration**: draft still requires it (`README.md:430-433,529-531`);
   per the binding decision, drop migration and just version the new per-engine
   payload.
@@ -340,7 +339,7 @@ Any TODO that assumes the harness directly dispatches every tool through
    hook:
    - EventEmitter methods: `on`, `off`, `emit`, `removeAllListeners`
    - core: `analyze`, `reset`, `cleanupSession`
-   - intervention: `recordUserInteraction`, `getInterventionController`
+   - focus: `recordUserInteraction`, `getFocusStore`
    - SDK/session: `getSdkSessionId`, `restoreSessionMapping`
    - architecture cache: `restoreArchitectureCache`, `getCachedArchitecture`
    - report state: `getSessionNotes`, `getSessionPlan`,
@@ -546,7 +545,7 @@ unknown API shape before the existing two runtimes are stabilized.
 
 5. **The real `IOrchestrator` surface is acknowledged.**
    Draft v2 lists EventEmitter methods, snapshot hooks, report hooks,
-   intervention hooks, architecture cache hooks, and SDK/session hooks.
+   focus hooks, architecture cache hooks, and SDK/session hooks.
 
 6. **Event layering is explicit.**
    Internal native engine events are separate from public `StreamingUpdate`

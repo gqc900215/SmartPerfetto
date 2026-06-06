@@ -101,8 +101,7 @@ This plan is grounded against the current source tree as of 2026-05-31.
 - EventEmitter methods: `on`, `off`, `emit`, `removeAllListeners`
 - core methods: `analyze`, `reset`
 - optional session cleanup: `cleanupSession`
-- focus/intervention hooks: `getFocusStore`, `recordUserInteraction`,
-  `getInterventionController`
+- focus hooks: `getFocusStore`, `recordUserInteraction`
 - SDK/session hooks: `getSdkSessionId`, deprecated `restoreSessionMapping`
 - architecture cache hooks: `restoreArchitectureCache`, `getCachedArchitecture`
 - report state hooks: `getSessionNotes`, `getSessionPlan`,
@@ -811,7 +810,7 @@ Work:
 - Route all current `IOrchestrator` hooks explicitly:
   - EventEmitter methods
   - `analyze`, `reset`, `cleanupSession`
-  - intervention hooks or documented no-op behavior
+  - focus hooks
   - SDK/session hooks
   - architecture cache hooks
   - report state hooks

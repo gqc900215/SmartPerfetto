@@ -347,7 +347,6 @@ export interface StreamingUpdate {
     | 'hypothesis_generated' | 'agent_task_dispatched' | 'agent_dialogue' | 'agent_response' | 'round_start' | 'synthesis_complete' | 'strategy_decision'
     | 'degraded' | 'stage_transition' | 'circuit_breaker'
     // Agent-Driven Architecture v2.0 events
-    | 'intervention_required' | 'intervention_resolved' | 'intervention_timeout'
     | 'strategy_selected' | 'strategy_fallback'
     | 'sql_generated' | 'sql_validation_failed'
     | 'focus_updated' | 'incremental_scope'

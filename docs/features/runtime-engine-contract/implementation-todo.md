@@ -58,7 +58,7 @@ Modify files:
 
 Checklist:
 - [x] Inventory every consumed `IOrchestrator` hook, including EventEmitter,
-  session/provider, snapshot, report, intervention, architecture cache, and any
+  session/provider, snapshot, report, focus, architecture cache, and any
   current route-only optional hooks.
 - [x] Add runtime selection matrix tests for provider override, snapshot
   override, env fallback, invalid env, and default runtime.

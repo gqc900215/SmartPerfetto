@@ -41,7 +41,7 @@ Key files:
 | File | Purpose |
 | --- | --- |
 | `backend/src/index.ts` | Express bootstrap, route registration, health output |
-| `backend/src/routes/agentRoutes.ts` | analyze endpoint, SSE stream, turns, response/intervention/cancel/focus |
+| `backend/src/routes/agentRoutes.ts` | analyze endpoint, SSE stream, turns, response/cancel/focus |
 | `backend/src/assistant/application/agentAnalyzeSessionService.ts` | session creation/reuse, provider pinning, persistence recovery |
 | `backend/src/agentRuntime/runtimeSelection.ts` | runtime selection and orchestrator creation |
 | `backend/src/agentv3/claudeRuntime.ts` | Claude Agent SDK orchestrator |

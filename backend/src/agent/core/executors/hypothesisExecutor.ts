@@ -32,7 +32,6 @@ import {
   ExecutorResult,
   ProgressEmitter,
   translateStrategy,
-  InterventionRequest,
 } from '../orchestratorTypes';
 import { createHypothesis } from '../hypothesisGenerator';
 import { planTaskGraph, buildTasksFromGraph } from '../taskGraphPlanner';
@@ -41,40 +40,17 @@ import { synthesizeFeedback, SynthesisResult } from '../feedbackSynthesizer';
 import type { FocusStore, UserFocus } from '../../context/focusStore';
 
 // =============================================================================
-// Intervention Configuration
-// =============================================================================
-
-interface InterventionConfig {
-  /** Confidence threshold below which intervention is triggered */
-  confidenceThreshold: number;
-  /** Maximum analysis time before timeout intervention (ms) */
-  timeoutThresholdMs: number;
-  /** Enable automatic interventions */
-  autoIntervention: boolean;
-}
-
-const DEFAULT_INTERVENTION_CONFIG: InterventionConfig = {
-  confidenceThreshold: 0.4,  // Lower than orchestrator's conclusion threshold
-  timeoutThresholdMs: 90000, // 90 seconds
-  autoIntervention: true,
-};
-
-// =============================================================================
 // HypothesisExecutor
 // =============================================================================
 
 export class HypothesisExecutor implements AnalysisExecutor {
   private focusStore?: FocusStore;
-  private interventionConfig: InterventionConfig;
 
   constructor(
     private services: AnalysisServices,
     private agentRegistry: DomainAgentRegistry,
-    private strategyPlanner: IterationStrategyPlanner,
-    interventionConfig?: Partial<InterventionConfig>
-  ) {
-    this.interventionConfig = { ...DEFAULT_INTERVENTION_CONFIG, ...interventionConfig };
-  }
+    private strategyPlanner: IterationStrategyPlanner
+  ) {}
 
   /**
    * Set FocusStore for focus-aware analysis planning (v2.0)
@@ -84,7 +60,6 @@ export class HypothesisExecutor implements AnalysisExecutor {
   }
 
   async execute(ctx: ExecutionContext, emitter: ProgressEmitter): Promise<ExecutorResult> {
-    const startTime = Date.now();
     const allFindings: Finding[] = [];
     let lastStrategy: StrategyDecision | null = null;
     // Seed with cross-turn contradictions so the planner prioritizes resolving them.
@@ -100,7 +75,6 @@ export class HypothesisExecutor implements AnalysisExecutor {
     let noProgressRounds = 0;
     let failureRounds = 0;
     let stopReason: string | null = null;
-    let interventionRequest: InterventionRequest | undefined;
     let hypothesesAnnounced = false;
 
     const hardMaxRounds = Math.max(1, ctx.config.maxRounds);
@@ -304,33 +278,6 @@ export class HypothesisExecutor implements AnalysisExecutor {
         break;
       }
 
-      // 4.5 Check intervention conditions (v2.0)
-      const elapsedMs = Date.now() - startTime;
-      const currentConfidence = this.estimateCurrentConfidence(allFindings, ctx.sharedContext);
-      const possibleDirections = this.buildPossibleDirections(ctx.sharedContext);
-
-      interventionRequest = this.checkInterventionConditions(
-        currentConfidence,
-        possibleDirections,
-        elapsedMs,
-        currentRound,
-        allFindings,
-        emitter
-      );
-
-      if (interventionRequest) {
-        emitter.log(`[HypothesisExecutor] Intervention triggered: ${interventionRequest.reason}`);
-        emitter.emitUpdate('progress', {
-          phase: 'intervention_required',
-          type: interventionRequest.type,
-          confidence: interventionRequest.confidence,
-          reason: interventionRequest.reason,
-          message: `需要用户干预: ${interventionRequest.reason}`,
-        });
-        // Don't break - we'll check in the orchestrator whether to pause
-        // For now, continue to strategy decision which may also conclude
-      }
-
       // 5. Decide next strategy with focus context (v2.0)
       const topFocuses = this.focusStore?.getTopFocuses(3) || [];
       const focusContext = this.buildFocusContext(topFocuses);
@@ -430,8 +377,6 @@ export class HypothesisExecutor implements AnalysisExecutor {
       informationGaps,
       rounds: currentRound,
       stopReason,
-      interventionRequest,
-      pausedForIntervention: !!interventionRequest,
     };
   }
 
@@ -461,7 +406,7 @@ export class HypothesisExecutor implements AnalysisExecutor {
   }
 
   // ===========================================================================
-  // Intervention Methods (v2.0)
+  // Confidence Helpers
   // ===========================================================================
 
   /**
@@ -489,103 +434,6 @@ export class HypothesisExecutor implements AnalysisExecutor {
     const criticalBoost = Math.min(0.2, criticalFindings * 0.1);
 
     return Math.min(1, findingsScore * 0.4 + hypothesisScore * 0.4 + criticalBoost + 0.2);
-  }
-
-  /**
-   * Build possible analysis directions from current hypotheses.
-   */
-  private buildPossibleDirections(
-    sharedContext: SharedAgentContext
-  ): Array<{ id: string; description: string; confidence: number }> {
-    const hypotheses = Array.from(sharedContext.hypotheses.values());
-    const directions: Array<{ id: string; description: string; confidence: number }> = [];
-
-    // Active hypotheses become possible directions
-    for (const hypothesis of hypotheses) {
-      if (hypothesis.status === 'proposed' || hypothesis.status === 'investigating') {
-        directions.push({
-          id: hypothesis.id,
-          description: hypothesis.description,
-          confidence: hypothesis.confidence,
-        });
-      }
-    }
-
-    // Add standard directions if no hypotheses
-    if (directions.length === 0) {
-      directions.push(
-        { id: 'frame_analysis', description: '深入帧渲染分析', confidence: 0.5 },
-        { id: 'cpu_analysis', description: '深入 CPU 调度分析', confidence: 0.5 },
-        { id: 'binder_analysis', description: '深入 Binder IPC 分析', confidence: 0.5 }
-      );
-    }
-
-    // Sort by confidence
-    return directions.sort((a, b) => b.confidence - a.confidence);
-  }
-
-  /**
-   * Check if intervention conditions are met.
-   */
-  private checkInterventionConditions(
-    confidence: number,
-    possibleDirections: Array<{ id: string; description: string; confidence: number }>,
-    elapsedMs: number,
-    roundsCompleted: number,
-    findings: Finding[],
-    emitter: ProgressEmitter
-  ): InterventionRequest | undefined {
-    if (!this.interventionConfig.autoIntervention) {
-      return undefined;
-    }
-
-    // 1. Low confidence check
-    if (confidence < this.interventionConfig.confidenceThreshold) {
-      emitter.log(`[Intervention] Low confidence: ${confidence.toFixed(2)} < ${this.interventionConfig.confidenceThreshold}`);
-      return {
-        type: 'low_confidence',
-        reason: `分析置信度较低 (${(confidence * 100).toFixed(0)}%)，需要确认是否继续`,
-        confidence,
-        possibleDirections,
-        progressSummary: `已完成 ${roundsCompleted} 轮分析，发现 ${findings.length} 个问题`,
-        elapsedTimeMs: elapsedMs,
-        roundsCompleted,
-      };
-    }
-
-    // 2. Ambiguity check (multiple directions with similar confidence)
-    if (possibleDirections.length >= 2) {
-      const topTwo = possibleDirections.slice(0, 2);
-      const confidenceDiff = Math.abs(topTwo[0].confidence - topTwo[1].confidence);
-      if (confidenceDiff < 0.15 && topTwo[0].confidence < 0.7) {
-        emitter.log(`[Intervention] Ambiguity detected: ${topTwo.map(d => d.description).join(' vs ')}`);
-        return {
-          type: 'ambiguity',
-          reason: '存在多个可能的分析方向，请选择重点',
-          confidence,
-          possibleDirections,
-          progressSummary: `已完成 ${roundsCompleted} 轮分析，发现 ${findings.length} 个问题`,
-          elapsedTimeMs: elapsedMs,
-          roundsCompleted,
-        };
-      }
-    }
-
-    // 3. Timeout check
-    if (elapsedMs > this.interventionConfig.timeoutThresholdMs) {
-      emitter.log(`[Intervention] Timeout: ${elapsedMs}ms > ${this.interventionConfig.timeoutThresholdMs}ms`);
-      return {
-        type: 'timeout',
-        reason: `分析时间较长 (${Math.round(elapsedMs / 1000)}秒)，是否继续?`,
-        confidence,
-        possibleDirections,
-        progressSummary: `已完成 ${roundsCompleted} 轮分析，发现 ${findings.length} 个问题`,
-        elapsedTimeMs: elapsedMs,
-        roundsCompleted,
-      };
-    }
-
-    return undefined;
   }
 
   private buildEvaluation(

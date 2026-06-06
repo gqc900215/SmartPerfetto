@@ -50,7 +50,6 @@ Base path: `/api/agent/v1`
 | `GET` | `/:sessionId/turns/:turnId` | Get a single turn |
 | `POST` | `/resume` | Resume an existing session |
 | `POST` | `/:sessionId/respond` | Continue an awaiting-user session |
-| `POST` | `/:sessionId/intervene` | User intervention endpoint; agentv3 gracefully rejects unsupported runtime abilities |
 | `POST` | `/:sessionId/cancel` | Cancel analysis |
 | `POST` | `/:sessionId/interaction` | Record UI interaction |
 | `GET` | `/:sessionId/focus` | Query focus state |

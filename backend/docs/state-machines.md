@@ -255,9 +255,9 @@ This state machine describes how the frontend handles different SSE event types.
 │                                                                              │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │  circuit_breaker                                                     │    │
-│  │  ├─ Extract reason, options                                         │    │
-│  │  ├─ Display user intervention UI                                    │    │
-│  │  └─ Wait for user response                                          │    │
+│  │  ├─ Extract reason and agent id                                     │    │
+│  │  ├─ Display non-blocking protection status                          │    │
+│  │  └─ Continue with normal terminal/progress handling                  │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                              │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
@@ -282,7 +282,7 @@ This state machine describes how the frontend handles different SSE event types.
 | `skill_layered_result` | Extract layers → SqlQueryResult[] | Yes | No |
 | `skill_diagnostics` | Extract findings | Optional | No |
 | `analysis_completed` | Show summary, set done | Yes | Yes (done) |
-| `circuit_breaker` | Show intervention UI | Yes | Yes (paused) |
+| `circuit_breaker` | Show protection status | Yes | Yes |
 | `error` | Show error message | Yes | Yes (error) |
 | `thought` | Skip (noise reduction) | No | No |
 | `worker_thought` | Skip (noise reduction) | No | No |
@@ -1322,9 +1322,9 @@ MasterOrchestrator 协调 StateMachine、CircuitBreaker 和 PipelineExecutor 完
 │   │     │  5a. Circuit Breaker Check                                   │  │   │
 │   │     │      decision = circuitBreaker.canExecute()                  │  │   │
 │   │     │      if (decision.action === 'ask_user'):                    │  │   │
-│   │     │        → emit('circuit_breaker', { reason, options })        │  │   │
+│   │     │        → emit('circuit_breaker', { agentId, reason })        │  │   │
 │   │     │        → stateMachine.transition({ type: 'CIRCUIT_TRIPPED' })│  │   │
-│   │     │        → 等待用户响应                                        │  │   │
+│   │     │        → 非阻塞显示保护状态                                  │  │   │
 │   │     └─────────────────────────────────────────────────────────────┘  │   │
 │   │                               │                                      │   │
 │   │                               ▼                                      │   │

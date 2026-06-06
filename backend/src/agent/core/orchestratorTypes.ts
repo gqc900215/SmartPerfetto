@@ -177,10 +177,8 @@ export interface IOrchestrator {
   cleanupSession?(sessionId: string): void;
   /** Historical focus-store hook. Guard with: typeof orchestrator.getFocusStore === 'function'. */
   getFocusStore?(): any;
-  /** Optional runtime-specific intervention hook. */
+  /** Optional focus-tracking hook for frontend interaction capture. */
   recordUserInteraction?(interaction: any): void;
-  /** Optional runtime-specific intervention hook. */
-  getInterventionController?(): any;
   /** SDK session ID for runtimes that expose one. */
   getSdkSessionId?(sessionId: string, referenceTraceId?: string): string | undefined;
   /**
@@ -417,11 +415,6 @@ export interface StreamingEventPayloads {
   finding: { round: number; findings: Finding[] };
   error: { message: string };
 
-  // New intervention-related events
-  intervention_required: InterventionRequiredPayload;
-  intervention_resolved: InterventionResolvedPayload;
-  intervention_timeout: InterventionTimeoutPayload;
-
   // Strategy selection events
   strategy_selected: StrategySelectedPayload;
   strategy_fallback: StrategyFallbackPayload;
@@ -433,59 +426,6 @@ export interface StreamingEventPayloads {
   // Focus tracking events
   focus_updated: FocusUpdatedPayload;
   incremental_scope: IncrementalScopePayload;
-}
-
-// =============================================================================
-// Intervention Event Payloads
-// =============================================================================
-
-/**
- * Payload for intervention_required event
- */
-export interface InterventionRequiredPayload {
-  interventionId: string;
-  type: 'low_confidence' | 'ambiguity' | 'timeout' | 'agent_request' | 'circuit_breaker' | 'validation_required';
-  options: InterventionOptionPayload[];
-  context: {
-    confidence: number;
-    elapsedTimeMs: number;
-    roundsCompleted: number;
-    progressSummary: string;
-    triggerReason: string;
-    findingsCount: number;
-  };
-  timeout: number;
-}
-
-export interface InterventionOptionPayload {
-  id: string;
-  label: string;
-  description: string;
-  action: 'continue' | 'focus' | 'abort' | 'custom' | 'select_option';
-  recommended?: boolean;
-}
-
-/**
- * Payload for intervention_resolved event
- */
-export interface InterventionResolvedPayload {
-  interventionId: string;
-  action: string;
-  sessionId: string;
-  directive?: {
-    action: 'continue' | 'focus' | 'abort' | 'restart';
-    reason: string;
-  };
-}
-
-/**
- * Payload for intervention_timeout event
- */
-export interface InterventionTimeoutPayload {
-  interventionId: string;
-  sessionId: string;
-  defaultAction: string;
-  timeoutMs: number;
 }
 
 // =============================================================================
@@ -646,24 +586,6 @@ export interface ExecutionContext {
 
 import type { CapturedEntities } from './entityCapture';
 
-/**
- * Intervention request from executor for orchestrator to handle.
- * When set, the orchestrator will pause execution and request user intervention.
- */
-export interface InterventionRequest {
-  type: 'low_confidence' | 'ambiguity' | 'timeout' | 'agent_request';
-  reason: string;
-  confidence: number;
-  possibleDirections: Array<{
-    id: string;
-    description: string;
-    confidence: number;
-  }>;
-  progressSummary: string;
-  elapsedTimeMs: number;
-  roundsCompleted: number;
-}
-
 export interface ExecutorResult {
   findings: Finding[];
   lastStrategy: StrategyDecision | null;
@@ -686,18 +608,6 @@ export interface ExecutorResult {
     frames?: string[];
     sessions?: string[];
   };
-
-  /**
-   * Intervention request from executor (v2.0).
-   * When set, orchestrator will pause and wait for user decision before proceeding.
-   */
-  interventionRequest?: InterventionRequest;
-
-  /**
-   * Indicates whether execution was paused due to intervention.
-   * The orchestrator can resume with user's directive when this is true.
-   */
-  pausedForIntervention?: boolean;
 }
 
 // =============================================================================

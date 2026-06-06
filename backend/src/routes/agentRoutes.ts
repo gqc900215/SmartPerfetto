@@ -131,8 +131,7 @@ import {
 import { buildAssistantResultContract } from '../assistant/contracts/assistantResultContract';
 import { persistCompletedAnalysisResultSnapshot } from '../services/analysisResultSnapshotPipeline';
 import { runClaimVerification } from '../services/verifier/claimVerificationRunner';
-// Agent-Driven Architecture v2.0 - Intervention & Focus
-import type { UserDecision, AnalysisDirective } from '../agent/core/interventionController';
+// Agent-Driven Architecture v2.0 - Focus tracking
 import type { FocusInteraction } from '../agent/context/focusStore';
 // DataEnvelope types for v2.0 data contract
 import {
@@ -2466,102 +2465,8 @@ router.post('/sessions/:sessionId/respond', (req, res, next) => {
 });
 
 // =============================================================================
-// Agent-Driven Architecture v2.0 - Intervention & Focus Endpoints
+// Agent-Driven Architecture v2.0 - Cancel and Focus Endpoints
 // =============================================================================
-
-/**
- * POST /api/agent/v1/:sessionId/intervene
- *
- * Handle user intervention response during analysis.
- * Called when the frontend receives an 'intervention_required' event and
- * the user selects an option.
- *
- * Request body:
- * {
- *   interventionId: string,    // ID from intervention_required event
- *   action: 'continue' | 'focus' | 'abort' | 'custom' | 'select_option',
- *   selectedOptionId?: string, // ID of selected option
- *   customInput?: string,      // User's custom input (for action='custom')
- *   params?: Record<string, any> // Additional parameters
- * }
- *
- * Response:
- * {
- *   success: boolean,
- *   sessionId: string,
- *   directive?: AnalysisDirective  // How analysis should proceed
- * }
- */
-router.post('/:sessionId/intervene', async (req, res) => {
-  const { sessionId } = req.params;
-  const session = getAuthorizedSession(req, res, sessionId);
-  if (!session) return;
-
-  const { interventionId, action, selectedOptionId, customInput, params } = req.body;
-
-  // Validate required fields
-  if (!interventionId || typeof interventionId !== 'string') {
-    return res.status(400).json({
-      success: false,
-      error: 'interventionId is required',
-    });
-  }
-
-  const allowedActions = new Set(['continue', 'focus', 'abort', 'custom', 'select_option']);
-  if (!action || !allowedActions.has(action)) {
-    return res.status(400).json({
-      success: false,
-      error: `Invalid action: ${String(action)}. Allowed: ${Array.from(allowedActions).join(', ')}`,
-    });
-  }
-
-  try {
-    // ClaudeRuntime (agentv3) doesn't implement getInterventionController — reject gracefully.
-    if (typeof session.orchestrator.getInterventionController !== 'function') {
-      return res.status(400).json({ success: false, error: 'Intervention not supported in this runtime mode' });
-    }
-    const interventionController = session.orchestrator.getInterventionController();
-
-    // Check if there's a pending intervention
-    if (!interventionController.hasPendingIntervention(sessionId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'No pending intervention for this session',
-      });
-    }
-
-    // Build user decision
-    const decision: UserDecision = {
-      interventionId,
-      action,
-      selectedOptionId,
-      customInput,
-      params,
-    };
-
-    // Process the decision (interventionId is used internally to find the session)
-    const directive = interventionController.handleUserDecision(decision);
-
-    // Update session status if needed
-    if (directive.action === 'abort') {
-      await cancelSessionRun(sessionId, 'Aborted by user intervention');
-    } else if (session.status === 'awaiting_user') {
-      session.status = 'running';
-    }
-
-    return res.json({
-      success: true,
-      sessionId,
-      directive,
-    });
-  } catch (error: any) {
-    console.error(`[Intervene] Error processing intervention for session ${sessionId}:`, error);
-    return res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to process intervention',
-    });
-  }
-});
 
 /**
  * POST /api/agent/v1/:sessionId/interaction

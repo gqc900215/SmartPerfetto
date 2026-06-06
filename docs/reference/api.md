@@ -49,7 +49,6 @@ Base path: `/api/agent/v1`
 | `GET` | `/:sessionId/turns/:turnId` | 获取单轮详情 |
 | `POST` | `/resume` | 恢复已有 session |
 | `POST` | `/:sessionId/respond` | 继续或终止 awaiting_user 会话 |
-| `POST` | `/:sessionId/intervene` | 用户干预接口，agentv3 当前会优雅拒绝不支持的 runtime 能力 |
 | `POST` | `/:sessionId/cancel` | 取消分析 |
 | `POST` | `/:sessionId/interaction` | 记录 UI 交互 |
 | `GET` | `/:sessionId/focus` | 查询 focus 状态 |
