@@ -69,6 +69,20 @@ copy_dir() {
   rsync -a --delete "$src"/ "$dest"/
 }
 
+copy_backend_data_payload() {
+  local resources_dir="$1"
+  local data_dir="$resources_dir/backend/data"
+  mkdir -p "$data_dir"
+  (
+    cd "$PROJECT_ROOT"
+    git ls-files -z backend/data | rsync -a --from0 --files-from=- ./ "$resources_dir"/
+  )
+  if [ -e "$data_dir/agent-runtime" ] || [ -e "$data_dir/sessions.db" ]; then
+    echo "ERROR: portable package data payload contains runtime state under backend/data." >&2
+    exit 1
+  fi
+}
+
 download_checked() {
   local url="$1"
   local dest="$2"
@@ -233,7 +247,7 @@ copy_backend_payload() {
 
   mkdir -p "$resources_dir/backend"
   copy_dir "$PROJECT_ROOT/backend/dist" "$resources_dir/backend/dist"
-  copy_dir "$PROJECT_ROOT/backend/data" "$resources_dir/backend/data"
+  copy_backend_data_payload "$resources_dir"
   copy_dir "$PROJECT_ROOT/backend/public" "$resources_dir/backend/public"
   copy_dir "$PROJECT_ROOT/backend/skills" "$resources_dir/backend/skills"
   copy_dir "$PROJECT_ROOT/backend/strategies" "$resources_dir/backend/strategies"
