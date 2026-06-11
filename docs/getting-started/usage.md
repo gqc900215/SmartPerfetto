@@ -57,7 +57,7 @@ SmartPerfetto 最适合 Android 12+ trace，尤其是包含 FrameTimeline 数据
 | 完整 | 启动、滑动、ANR、复杂渲染根因 | 只问一个简单事实时成本偏高 |
 | 智能 | 混合脚本 trace、需要先看场景再决定深钻范围 | 明确只想直接分析单一场景时不如选择完整模式加具体问题 |
 
-fast 模式默认 10 turns。重型 Skill 可能返回较大的 JSON，仍可能耗尽 turns；复杂性能分析建议直接使用 full。
+fast 模式默认 50 turns。重型 Skill 可能返回较大的 JSON，仍可能耗尽 turns；复杂性能分析建议直接使用 full。
 
 ## 选区与追问
 

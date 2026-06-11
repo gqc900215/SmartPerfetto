@@ -929,6 +929,7 @@ describe('OpenAIRuntime plan completion guard', () => {
       startTime: Date.now() - 1000,
       rounds: 5,
       quickMode: false,
+      maxTurns: 1,
     });
 
     expect(result.partial).toBe(true);
@@ -946,6 +947,10 @@ describe('OpenAIRuntime plan completion guard', () => {
     expect(updateWorkingMemoryFromConclusion).not.toHaveBeenCalled();
     expect(updates.some(update => update.type === 'conclusion')).toBe(true);
     expect(updates.some(update => update.type === 'answer_token' && update.content?.done === true)).toBe(true);
+    expect(updates.some(update => (
+      update.type === 'degraded' &&
+      String(update.content?.message).includes('当前上限 1 turns')
+    ))).toBe(true);
   });
 });
 

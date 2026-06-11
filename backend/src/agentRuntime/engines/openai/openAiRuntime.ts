@@ -1123,6 +1123,7 @@ export class OpenAIRuntime extends EventEmitter implements IOrchestrator {
             startTime,
             rounds,
             quickMode,
+            maxTurns: quickMode ? config.quickMaxTurns : config.maxTurns,
             codeAwareMode: options.codeAwareMode,
           });
         }
@@ -1995,12 +1996,20 @@ export class OpenAIRuntime extends EventEmitter implements IOrchestrator {
     startTime: number;
     rounds: number;
     quickMode: boolean;
+    maxTurns?: number;
     codeAwareMode?: AnalysisOptions['codeAwareMode'];
   }): AnalysisResult {
+    const maxTurnText = Number.isFinite(params.maxTurns)
+      ? localize(
+          params.outputLanguage,
+          `（当前上限 ${params.maxTurns} turns）`,
+          ` (current limit: ${params.maxTurns} turns)`,
+        )
+      : '';
     let partialConclusion = params.accumulatedAnswer || localize(
       params.outputLanguage,
-      '分析达到轮次上限，尚未形成完整结论。',
-      'The analysis reached the turn limit before a complete conclusion was produced.',
+      `分析达到轮次上限${maxTurnText}，尚未形成完整结论。`,
+      `The analysis reached the turn limit${maxTurnText} before a complete conclusion was produced.`,
     );
     if (params.codeAwareMode && params.codeAwareMode !== 'off') {
       partialConclusion = sanitizeCodeAwareText(params.sessionId, partialConclusion);
@@ -2028,11 +2037,7 @@ export class OpenAIRuntime extends EventEmitter implements IOrchestrator {
         fallback: 'partial_result_after_max_turns',
         partial: true,
         terminationReason: 'max_turns',
-        message: localize(
-          params.outputLanguage,
-          'OpenAI 分析达到轮次上限，结果可能不完整',
-          'OpenAI analysis reached the turn limit; result may be incomplete',
-        ),
+        message: this.formatOpenAiMaxTurnsMessage(params.outputLanguage, params.maxTurns),
       },
       timestamp: Date.now(),
     });
@@ -2056,6 +2061,17 @@ export class OpenAIRuntime extends EventEmitter implements IOrchestrator {
     });
 
     return result;
+  }
+
+  private formatOpenAiMaxTurnsMessage(outputLanguage: OutputLanguage, maxTurns?: number): string {
+    const maxTurnText = Number.isFinite(maxTurns)
+      ? localize(outputLanguage, `（当前上限 ${maxTurns} turns）`, ` (current limit: ${maxTurns} turns)`)
+      : '';
+    return localize(
+      outputLanguage,
+      `OpenAI 分析达到轮次上限${maxTurnText}，结果可能不完整。可在 Provider Manager 提高 Max Turns，或清空该字段使用默认 100。`,
+      `OpenAI analysis reached the turn limit${maxTurnText}; the result may be incomplete. Raise Max Turns in Provider Manager, or clear the field to use the default 100.`,
+    );
   }
 
   private formatPlanContinuationMessage(

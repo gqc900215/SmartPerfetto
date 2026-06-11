@@ -222,8 +222,8 @@ export const traceProcessorConfig = {
 // Agent Configuration
 // =============================================================================
 
-export const DEFAULT_AGENT_MAX_TURNS = 60;
-export const DEFAULT_AGENT_QUICK_MAX_TURNS = 10;
+export const DEFAULT_AGENT_MAX_TURNS = 100;
+export const DEFAULT_AGENT_QUICK_MAX_TURNS = 50;
 export const DEFAULT_AGENT_SESSION_MAX_IDLE_MS = 12 * 60 * 60 * 1000;
 export const DEFAULT_AGENT_SESSION_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
 

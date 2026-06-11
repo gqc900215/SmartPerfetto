@@ -160,7 +160,7 @@ describe('AnalysisRunSpec shadow mode', () => {
         model: 'gpt-5.5',
         lightModel: 'gpt-5.4-mini',
         maxTurns: 60,
-        quickMaxTurns: 10,
+        quickMaxTurns: 50,
         maxOutputTokens: 2048,
         fullPathPerTurnMs: 60_000,
         quickPathPerTurnMs: 40_000,

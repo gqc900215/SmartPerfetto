@@ -150,12 +150,12 @@ afterEach(() => {
 });
 
 describe('createQuickConfig', () => {
-  it('keeps the existing quick max-turn default', () => {
+  it('uses the shared quick max-turn default', () => {
     delete process.env.CLAUDE_QUICK_MAX_TURNS;
     delete process.env.AGENT_QUICK_MAX_TURNS;
     const config = createQuickConfig(loadClaudeConfig({ maxTurns: 60 }));
 
-    expect(config.maxTurns).toBe(10);
+    expect(config.maxTurns).toBe(50);
     expect(config.enableVerification).toBe(false);
     expect(config.enableSubAgents).toBe(false);
   });
@@ -181,7 +181,7 @@ describe('createQuickConfig', () => {
     process.env.CLAUDE_QUICK_MAX_TURNS = '0';
     const config = createQuickConfig(loadClaudeConfig({ maxTurns: 60 }));
 
-    expect(config.maxTurns).toBe(10);
+    expect(config.maxTurns).toBe(50);
   });
 
   it('uses shared full max-turn config as fallback', () => {
@@ -195,7 +195,7 @@ describe('createQuickConfig', () => {
   it('can resolve quick max turns from an isolated SDK env', () => {
     process.env.CLAUDE_QUICK_MAX_TURNS = '8';
 
-    expect(createQuickConfig(loadClaudeConfig({ maxTurns: 60 }), {}).maxTurns).toBe(10);
+    expect(createQuickConfig(loadClaudeConfig({ maxTurns: 60 }), {}).maxTurns).toBe(50);
     expect(createQuickConfig(loadClaudeConfig({ maxTurns: 60 }), {
       CLAUDE_QUICK_MAX_TURNS: '6',
     }).maxTurns).toBe(6);

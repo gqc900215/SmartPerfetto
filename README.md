@@ -251,10 +251,10 @@ Accepted values include `zh-CN` and `en`. Restart the backend after changing `.e
 SmartPerfetto has separate turn budgets for fast and full analysis. Claude runtime uses `CLAUDE_*`; OpenAI runtime uses `OPENAI_*` with the same meanings:
 
 ```bash
-CLAUDE_QUICK_MAX_TURNS=10  # fast mode default
-CLAUDE_MAX_TURNS=60        # full mode default
-OPENAI_QUICK_MAX_TURNS=10  # optional OpenAI runtime override
-OPENAI_MAX_TURNS=60        # optional OpenAI runtime override
+CLAUDE_QUICK_MAX_TURNS=50  # fast mode default
+CLAUDE_MAX_TURNS=100       # full mode default
+OPENAI_QUICK_MAX_TURNS=50  # optional OpenAI runtime override
+OPENAI_MAX_TURNS=100       # optional OpenAI runtime override
 ```
 
 Raise these values for slower models or traces that need more tool iterations. The total safety timeout scales with the turn budget: full mode uses `CLAUDE_FULL_PER_TURN_MS` / `OPENAI_FULL_PER_TURN_MS` per turn, and fast mode uses `CLAUDE_QUICK_PER_TURN_MS` / `OPENAI_QUICK_PER_TURN_MS` per turn. Restart the backend after changing `.env`.

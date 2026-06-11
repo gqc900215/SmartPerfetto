@@ -246,10 +246,10 @@ SMARTPERFETTO_OUTPUT_LANGUAGE=en
 SmartPerfetto 区分 fast 和 full 两套轮次预算。Claude runtime 使用 `CLAUDE_*`；OpenAI runtime 使用语义相同的 `OPENAI_*`：
 
 ```bash
-CLAUDE_QUICK_MAX_TURNS=10  # fast 模式默认值
-CLAUDE_MAX_TURNS=60        # full 模式默认值
-OPENAI_QUICK_MAX_TURNS=10  # 可选 OpenAI runtime 覆盖
-OPENAI_MAX_TURNS=60        # 可选 OpenAI runtime 覆盖
+CLAUDE_QUICK_MAX_TURNS=50  # fast 模式默认值
+CLAUDE_MAX_TURNS=100       # full 模式默认值
+OPENAI_QUICK_MAX_TURNS=50  # 可选 OpenAI runtime 覆盖
+OPENAI_MAX_TURNS=100       # 可选 OpenAI runtime 覆盖
 ```
 
 如果使用较慢模型，或某些 trace 需要更多工具调用轮次，可以调高这些值。总 safety timeout 会随轮次预算放大：full 模式每轮使用 `CLAUDE_FULL_PER_TURN_MS` / `OPENAI_FULL_PER_TURN_MS`，fast 模式每轮使用 `CLAUDE_QUICK_PER_TURN_MS` / `OPENAI_QUICK_PER_TURN_MS`。修改 `.env` 后需要重启 backend。

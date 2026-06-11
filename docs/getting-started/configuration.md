@@ -281,8 +281,8 @@ OPENAI_CLASSIFIER_TIMEOUT_MS=30000
 
 | 模式 | 行为 | 适用场景 |
 |---|---|---|
-| `fast` | 默认 10 turns（`CLAUDE_QUICK_MAX_TURNS` / `OPENAI_QUICK_MAX_TURNS` 可调），3 个轻量工具 | 包名、进程、简单事实查询 |
-| `full` | 默认 60 turns（`CLAUDE_MAX_TURNS` / `OPENAI_MAX_TURNS` 可调），完整工具集 | 启动、滑动、ANR、复杂根因分析 |
+| `fast` | 默认 50 turns（`CLAUDE_QUICK_MAX_TURNS` / `OPENAI_QUICK_MAX_TURNS` 可调），3 个轻量工具 | 包名、进程、简单事实查询 |
+| `full` | 默认 100 turns（`CLAUDE_MAX_TURNS` / `OPENAI_MAX_TURNS` 可调），完整工具集 | 启动、滑动、ANR、复杂根因分析 |
 | `auto` | 关键词规则、硬规则和轻量分类器自动选择 | 默认模式 |
 
 前端会把选择持久化到 `localStorage['ai-analysis-mode']`。中途切换模式会清空当前 `agentSessionId`，让后端开启新的 SDK session。
