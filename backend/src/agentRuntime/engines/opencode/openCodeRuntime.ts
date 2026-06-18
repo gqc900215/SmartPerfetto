@@ -356,6 +356,7 @@ export function getOpenCodeEngineCapabilities(
     displayName: publicRuntime ? 'OpenCode' : 'Experimental OpenCode',
     production: publicRuntime,
     publicRuntime,
+    promptCache: { systemPromptDynamicBoundary: false },
   };
 }
 

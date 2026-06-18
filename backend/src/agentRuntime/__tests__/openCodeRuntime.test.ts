@@ -100,6 +100,7 @@ describe('experimental OpenCode runtime contract', () => {
       displayName: 'Experimental OpenCode',
       production: false,
       publicRuntime: false,
+      promptCache: { systemPromptDynamicBoundary: false },
     });
   });
 

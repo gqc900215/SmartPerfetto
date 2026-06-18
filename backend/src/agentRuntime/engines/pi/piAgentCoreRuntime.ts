@@ -299,6 +299,7 @@ export function getPiAgentCoreEngineCapabilities(
     displayName: publicRuntime ? 'Pi Agent Core' : 'Experimental Pi Agent Core',
     production: publicRuntime,
     publicRuntime,
+    promptCache: { systemPromptDynamicBoundary: false },
   };
 }
 
