@@ -522,6 +522,22 @@ describe('buildSystemPrompt', () => {
       expect(role!.tier).toBe(1);
     });
 
+    it('splits methodology into base, scene core, and report contract segments', () => {
+      const parts = buildSystemPromptParts(makeContext({ sceneType: 'scrolling' }));
+      const labels = parts.segments.map(s => s.label);
+      expect(labels).toContain('base_methodology');
+      expect(labels).toContain('scene_strategy_core');
+      expect(labels).toContain('report_contract');
+
+      const sceneCore = parts.segments.find(s => s.label === 'scene_strategy_core');
+      const reportContract = parts.segments.find(s => s.label === 'report_contract');
+      expect(sceneCore?.truncatable).toBe(true);
+      expect(sceneCore?.estimatedTokens).toBeGreaterThan(0);
+      expect(sceneCore?.charCount).toBe(sceneCore?.content.length);
+      expect(reportContract?.droppable).toBe(false);
+      expect(reportContract?.truncatable).toBeFalsy();
+    });
+
     it('drops a known low-priority label first when the budget is tight', () => {
       const parts = buildSystemPromptParts(makeContext({
         sceneType: 'scrolling',
