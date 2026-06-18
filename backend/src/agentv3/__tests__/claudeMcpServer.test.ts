@@ -69,12 +69,31 @@ jest.mock('../artifactStore', () => ({
         rowCount: artifact.data?.rows?.length ?? 0,
         ...(artifact.planPhaseId ? { planPhaseId: artifact.planPhaseId } : {}),
         ...(artifact.planPhaseTitle ? { planPhaseTitle: artifact.planPhaseTitle } : {}),
+        ...(artifact.traceProvenance?.traceSide ? { traceSide: artifact.traceProvenance.traceSide } : {}),
+        ...(artifact.traceProvenance?.traceId ? { traceId: artifact.traceProvenance.traceId } : {}),
       };
     }),
     fetch: jest.fn(function(this: any, id: string, detail: string, offset?: number, limit?: number) {
       const artifact = this._artifacts.get(id);
       const rows = artifact?.data?.rows || [[1], [2]];
       const columns = artifact?.data?.columns || ['value'];
+      if (detail === 'summary') {
+        return {
+          id,
+          skillId: artifact?.skillId,
+          stepId: artifact?.stepId,
+          title: artifact?.title,
+          rowCount: rows.length,
+          columns,
+          sampleRow: rows[0],
+          diagnosticCount: Array.isArray(artifact?.diagnostics) ? artifact.diagnostics.length : 0,
+          planPhaseId: artifact?.planPhaseId,
+          planPhaseTitle: artifact?.planPhaseTitle,
+          planPhaseGoal: artifact?.planPhaseGoal,
+          sourceToolCallId: artifact?.sourceToolCallId,
+          identityResolution: artifact?.identityResolution,
+        };
+      }
       const effectiveOffset = offset ?? 0;
       const effectiveLimit = limit ?? 50;
       return {
@@ -96,6 +115,9 @@ jest.mock('../artifactStore', () => ({
         sourceToolCallId: artifact?.sourceToolCallId,
         paramsHash: artifact?.paramsHash,
         identityResolution: artifact?.identityResolution,
+        traceSide: artifact?.traceProvenance?.traceSide,
+        traceId: artifact?.traceProvenance?.traceId,
+        traceProvenance: artifact?.traceProvenance,
       };
     }),
     get: jest.fn(function(this: any, id: string) {
@@ -111,11 +133,11 @@ jest.mock('../artifactStore', () => ({
 }));
 
 jest.mock('../sqlSummarizer', () => ({
-  summarizeSqlResult: jest.fn(() => ({
-    totalRows: 10,
-    columns: ['col1'],
+  summarizeSqlResult: jest.fn((columns: string[] = ['col1'], rows: any[][] = [[1]]) => ({
+    totalRows: rows.length,
+    columns,
     columnStats: {},
-    sampleRows: [[1]],
+    sampleRows: rows.slice(0, 10),
   })),
 }));
 
@@ -775,6 +797,80 @@ describe('createClaudeMcpServer', () => {
       });
     });
 
+    it('auto-summarizes large raw SQL results and exposes paginated artifact rows with provenance', async () => {
+      const { tools, emittedUpdates, mockTpService } = createTestServer();
+      await callTool(tools, 'submit_plan', {
+        phases: [{ id: 'p1', name: 'Collect', goal: 'Collect SQL evidence', expectedTools: ['execute_sql', 'fetch_artifact'] }],
+        successCriteria: 'Large SQL rows remain fetchable without bloating tool context',
+      });
+      await callTool(tools, 'update_plan_phase', { phaseId: 'p1', status: 'in_progress' });
+
+      const rows = Array.from({ length: 75 }, (_, i) => [i, `slice-${i}`]);
+      (mockTpService.query as any).mockResolvedValueOnce({
+        columns: ['id', 'slice_name'],
+        rows,
+        rowCount: rows.length,
+        durationMs: 7,
+      });
+
+      const result = await callTool(tools, 'execute_sql', {
+        sql: 'SELECT id, name AS slice_name FROM slice ORDER BY id',
+      });
+
+      const envelope = emittedUpdates
+        .filter((u: any) => u.type === 'data')
+        .flatMap((u: any) => u.content ?? [])
+        .find((env: any) => env.display?.format === 'summary' && env.sql?.includes('FROM slice'));
+
+      expect(result.success).toBe(true);
+      expect(result.mode).toBe('summary');
+      expect(result.autoSummarized).toBe(true);
+      expect(result.rows).toBeUndefined();
+      expect(result.artifactId).toBe('art-1');
+      expect(result.rowsAvailableViaArtifact).toBe(true);
+      expect(envelope).toMatchObject({
+        display: { format: 'summary', layer: 'overview' },
+        meta: {
+          artifactId: 'art-1',
+          sourceArtifactId: 'art-1',
+          traceSide: 'current',
+          traceId: 'test-trace-123',
+          planPhaseId: 'p1',
+          intent: 'ad_hoc_sql_summary',
+        },
+      });
+
+      const summaryFetch = await callTool(tools, 'fetch_artifact', {
+        artifactId: result.artifactId,
+        purpose: 'Confirm default artifact summary stays compact',
+      });
+      expect(summaryFetch.success).toBe(true);
+      expect(summaryFetch.detail).toBe('summary');
+      expect(summaryFetch.traceSide).toBeUndefined();
+      expect(summaryFetch.traceId).toBeUndefined();
+      expect(summaryFetch.traceProvenance).toBeUndefined();
+      expect(summaryFetch.rows).toBeUndefined();
+      expect(summaryFetch.sourceArtifactId).toBe('art-1');
+
+      const fetched = await callTool(tools, 'fetch_artifact', {
+        artifactId: result.artifactId,
+        detail: 'rows',
+        offset: 50,
+        limit: 10,
+        purpose: 'Inspect the second page of large SQL rows',
+      });
+
+      expect(fetched.success).toBe(true);
+      expect(fetched.rows).toHaveLength(10);
+      expect(fetched.rows[0]).toEqual([50, 'slice-50']);
+      expect(fetched.totalRows).toBe(75);
+      expect(fetched.hasMore).toBe(true);
+      expect(fetched.traceSide).toBe('current');
+      expect(fetched.traceId).toBe('test-trace-123');
+      expect(fetched.traceProvenance.databaseScope.processorKey).toBe('test-trace-123');
+      expect(fetched.sourceArtifactId).toBe('art-1');
+    });
+
     it('blocks artifact pseudo-tables before executing raw SQL', async () => {
       const { tools, emittedUpdates, mockTpService } = createTestServer({ lightweight: true });
 
@@ -1105,6 +1201,64 @@ describe('createClaudeMcpServer', () => {
       expect(envelope?.data?.summary?.metrics).toEqual(expect.arrayContaining([
         expect.objectContaining({ label: 'total_rows' }),
       ]));
+    });
+
+    it('auto-summarizes large execute_sql_on reference results and preserves reference provenance in artifacts', async () => {
+      const { tools, emittedUpdates, mockTpService } = createTestServer({ referenceTraceId: 'ref-trace-456' });
+      await callTool(tools, 'submit_plan', {
+        phases: [{ id: 'p1', name: 'Compare', goal: 'Collect large reference SQL evidence', expectedTools: ['execute_sql_on', 'fetch_artifact'] }],
+        successCriteria: 'Reference SQL artifact keeps trace-side provenance',
+      });
+      await callTool(tools, 'update_plan_phase', { phaseId: 'p1', status: 'in_progress' });
+
+      const rows = Array.from({ length: 61 }, (_, i) => [i, i * 2]);
+      (mockTpService.query as any).mockResolvedValueOnce({
+        columns: ['frame_id', 'dur_ms'],
+        rows,
+        rowCount: rows.length,
+        durationMs: 9,
+      });
+
+      const result = await callTool(tools, 'execute_sql_on', {
+        trace: 'reference',
+        sql: 'SELECT frame_id, dur_ms FROM frame_metrics ORDER BY dur_ms DESC',
+      });
+
+      const envelope = emittedUpdates
+        .filter((u: any) => u.type === 'data')
+        .flatMap((u: any) => u.content ?? [])
+        .find((env: any) => env.display?.format === 'summary' && env.sql?.includes('frame_metrics'));
+
+      expect(result.success).toBe(true);
+      expect(result.mode).toBe('summary');
+      expect(result.autoSummarized).toBe(true);
+      expect(result.rows).toBeUndefined();
+      expect(result.artifactId).toBe('art-1');
+      expect(result.artifact.traceSide).toBe('reference');
+      expect(result.artifact.traceId).toBe('ref-trace-456');
+      expect(envelope).toMatchObject({
+        meta: {
+          artifactId: 'art-1',
+          sourceArtifactId: 'art-1',
+          traceSide: 'reference',
+          traceId: 'ref-trace-456',
+          planPhaseId: 'p1',
+          intent: 'ad_hoc_sql_summary',
+        },
+      });
+
+      const fetched = await callTool(tools, 'fetch_artifact', {
+        artifactId: result.artifactId,
+        detail: 'rows',
+        limit: 5,
+        purpose: 'Inspect reference SQL artifact rows',
+      });
+
+      expect(fetched.rows).toEqual(rows.slice(0, 5));
+      expect(fetched.totalRows).toBe(61);
+      expect(fetched.traceSide).toBe('reference');
+      expect(fetched.traceId).toBe('ref-trace-456');
+      expect(fetched.traceProvenance.databaseScope.traceSide).toBe('reference');
     });
 
     it('auto-starts a unique pending phase when no phase is active', async () => {

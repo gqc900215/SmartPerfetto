@@ -2139,6 +2139,18 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
         const truncated = result.rows.length > 200;
         const rows = truncated ? result.rows.slice(0, 200) : result.rows;
         const success = !result.error;
+        const sqlArtifact = success && result.columns.length > 0 && result.rows.length > SQL_RAW_INLINE_ROW_LIMIT
+          ? storeSqlResultArtifact(artifactStore, {
+              toolName: 'execute_sql',
+              columns: result.columns,
+              rows: result.rows,
+              sql: finalSql,
+              stdlibInjectedModules: injected,
+              traceProvenance,
+              producer,
+            })
+          : undefined;
+        const shouldReturnSqlSummary = success && result.rows.length > 0 && (summary || !!sqlArtifact);
 
         const sqlDuration = Date.now() - sqlStart;
         if (emitUpdate && sqlDuration > 500) {
@@ -2208,8 +2220,10 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
           }
         }
 
-        // Summary mode: return column statistics + sample rows instead of raw data
-        if (summary && success && rows.length > 0) {
+        // Summary mode: return column statistics + sample rows instead of raw data.
+        // M3: large raw SQL results automatically take this path and expose the
+        // full row set through a paginated artifact reference.
+        if (shouldReturnSqlSummary) {
           const summaryResult = summarizeSqlResult(result.columns, result.rows);
           if (emitUpdate) {
             emittedEvidence = emitSqlSummaryDataEnvelope(
@@ -2220,6 +2234,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
               traceProvenance,
               producer,
               processIdentityWarning,
+              sqlArtifact?.artifactId,
             );
           }
           return {
@@ -2228,10 +2243,18 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
               text: consumeWatchdogWarning(JSON.stringify({
                 success: true,
                 mode: 'summary',
+                autoSummarized: !summary && !!sqlArtifact,
                 totalRows: summaryResult.totalRows,
                 columns: summaryResult.columns,
                 columnStats: summaryResult.columnStats,
                 sampleRows: summaryResult.sampleRows,
+                ...(sqlArtifact ? {
+                  artifactId: sqlArtifact.artifactId,
+                  artifact: sqlArtifact.artifactSummary,
+                  rowsAvailableViaArtifact: true,
+                  pageSize: SQL_ARTIFACT_PAGE_SIZE,
+                  hint: `Use fetch_artifact(artifactId="${sqlArtifact.artifactId}", detail="rows", offset=0, limit=${SQL_ARTIFACT_PAGE_SIZE}) to page full SQL rows.`,
+                } : {}),
                 durationMs: result.durationMs,
                 traceSide: traceProvenance.traceSide,
                 traceId: traceProvenance.traceId,
@@ -5003,9 +5026,21 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
         const truncated = result.rows.length > 200;
         const rows = truncated ? result.rows.slice(0, 200) : result.rows;
         const success = !result.error;
+        const sqlArtifact = success && result.columns.length > 0 && result.rows.length > SQL_RAW_INLINE_ROW_LIMIT
+          ? storeSqlResultArtifact(artifactStore, {
+              toolName: 'execute_sql_on',
+              columns: result.columns,
+              rows: result.rows,
+              sql: finalSql,
+              stdlibInjectedModules: injected,
+              traceProvenance,
+              producer,
+            })
+          : undefined;
+        const shouldReturnSqlSummary = success && result.rows.length > 0 && (summary || !!sqlArtifact);
         let emittedEvidence: { evidenceRefId: string; queryHash: string } | undefined;
 
-        if (success && summary && result.rows.length > 0) {
+        if (shouldReturnSqlSummary) {
           const summaryResult = summarizeSqlResult(result.columns, result.rows);
           const durationMs = Date.now() - sqlStart;
           if (emitUpdate) {
@@ -5017,6 +5052,7 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
               traceProvenance,
               producer,
               processIdentityWarning,
+              sqlArtifact?.artifactId,
             );
           }
           const text = JSON.stringify({
@@ -5025,8 +5061,17 @@ export function createClaudeMcpServer(options: ClaudeMcpServerOptions) {
             traceSide: trace,
             traceId: targetTraceId,
             traceProvenance,
+            mode: 'summary',
+            autoSummarized: !summary && !!sqlArtifact,
             summary: summaryResult,
             totalRows: result.rows.length,
+            ...(sqlArtifact ? {
+              artifactId: sqlArtifact.artifactId,
+              artifact: sqlArtifact.artifactSummary,
+              rowsAvailableViaArtifact: true,
+              pageSize: SQL_ARTIFACT_PAGE_SIZE,
+              hint: `Use fetch_artifact(artifactId="${sqlArtifact.artifactId}", detail="rows", offset=0, limit=${SQL_ARTIFACT_PAGE_SIZE}) to page full SQL rows.`,
+            } : {}),
             durationMs,
             evidenceRefId: emittedEvidence?.evidenceRefId,
             sourceToolCallId: producer.sourceToolCallId,
@@ -5385,6 +5430,9 @@ function evidenceHash(input: unknown): string {
   return createHash('sha256').update(text || '').digest('hex').slice(0, 12);
 }
 
+const SQL_RAW_INLINE_ROW_LIMIT = 50;
+const SQL_ARTIFACT_PAGE_SIZE = 50;
+
 function evidencePart(value: unknown, fallback = 'unknown'): string {
   const text = String(value ?? fallback)
     .trim()
@@ -5411,6 +5459,43 @@ interface EvidenceProducerContext {
   planPhaseWarning?: string;
   toolNarration?: string;
   producerReason?: string;
+}
+
+function storeSqlResultArtifact(
+  artifactStore: ArtifactStore | undefined,
+  input: {
+    toolName: 'execute_sql' | 'execute_sql_on';
+    columns: string[];
+    rows: any[][];
+    sql: string;
+    stdlibInjectedModules?: string[];
+    traceProvenance: TraceProcessorQueryProvenance;
+    producer: EvidenceProducerContext;
+  },
+): { artifactId: string; artifactSummary?: ReturnType<ArtifactStore['generateCompactSummary']> } | undefined {
+  if (!artifactStore) return undefined;
+  const artifactId = artifactStore.store({
+    skillId: input.toolName,
+    stepId: 'sql_result',
+    layer: 'list',
+    title: `SQL Query Result (${input.rows.length} rows)`,
+    data: {
+      columns: input.columns,
+      rows: input.rows,
+      sql: input.sql,
+      stdlibInjectedModules: input.stdlibInjectedModules ?? [],
+    },
+    planPhaseId: input.producer.planPhaseId,
+    planPhaseTitle: input.producer.planPhaseTitle,
+    planPhaseGoal: input.producer.planPhaseGoal,
+    sourceToolCallId: input.producer.sourceToolCallId,
+    paramsHash: input.producer.paramsHash,
+    traceProvenance: input.traceProvenance,
+  });
+  return {
+    artifactId,
+    artifactSummary: artifactStore.generateCompactSummary(artifactId),
+  };
 }
 
 function stableSqlEvidenceRefId(
@@ -5511,6 +5596,7 @@ function emitSqlDataEnvelope(
   traceProvenance?: TraceProcessorQueryProvenance,
   producer?: EvidenceProducerContext,
   processIdentityWarning?: string,
+  artifactId?: string,
 ): { evidenceRefId: string; queryHash: string } {
   const { evidenceRefId, queryHash } = stableSqlEvidenceRefId(sql, columns, rows, traceProvenance, producer);
   const envelope = createDataEnvelope(
@@ -5530,6 +5616,8 @@ function emitSqlDataEnvelope(
       traceId: traceProvenance?.traceId,
       queryHash,
       ...producerEnvelopeOptions(producer),
+      artifactId,
+      sourceArtifactId: artifactId,
       processIdentityWarning,
       intent: 'ad_hoc_sql_verification',
     },
@@ -5561,6 +5649,7 @@ function emitSqlSummaryDataEnvelope(
   traceProvenance?: TraceProcessorQueryProvenance,
   producer?: EvidenceProducerContext,
   processIdentityWarning?: string,
+  artifactId?: string,
 ): { evidenceRefId: string; queryHash: string } {
   const { evidenceRefId, queryHash } = stableSqlEvidenceRefId(
     sql,
@@ -5589,6 +5678,8 @@ function emitSqlSummaryDataEnvelope(
       traceId: traceProvenance?.traceId,
       queryHash,
       ...producerEnvelopeOptions(producer),
+      artifactId,
+      sourceArtifactId: artifactId,
       processIdentityWarning,
       intent: 'ad_hoc_sql_summary',
     },
